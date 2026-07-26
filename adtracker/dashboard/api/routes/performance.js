@@ -133,4 +133,127 @@ router.get("/", async (req, res) => {
   }
 });
 
+// POST /api/performance/sync -- Sync Google Ads performance data
+// This endpoint receives campaign structure and keyword performance from Google Ads
+router.post("/sync", async (req, res) => {
+  const { rows } = req.body;
+  
+  if (!rows || !Array.isArray(rows)) {
+    return res.status(400).json({ error: "rows array required" });
+  }
+  
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    
+    let campaignsUpserted = 0;
+    let adGroupsUpserted = 0;
+    let keywordsUpserted = 0;
+    let dailyStatsUpserted = 0;
+    
+    for (const row of rows) {
+      // Upsert campaign
+      await client.query(
+        `INSERT INTO campaigns (id, name, status, channel_type, updated_at)
+         VALUES ($1, $2, $3, $4, NOW())
+         ON CONFLICT (id) DO UPDATE SET
+           name = EXCLUDED.name,
+           status = EXCLUDED.status,
+           channel_type = EXCLUDED.channel_type,
+           updated_at = NOW()`,
+        [row.campaign.id, row.campaign.name, row.campaign.status, row.campaign.channel_type]
+      );
+      campaignsUpserted++;
+      
+      // Upsert ad group
+      await client.query(
+        `INSERT INTO ad_groups (id, campaign_id, name, status, updated_at)
+         VALUES ($1, $2, $3, $4, NOW())
+         ON CONFLICT (id) DO UPDATE SET
+           campaign_id = EXCLUDED.campaign_id,
+           name = EXCLUDED.name,
+           status = EXCLUDED.status,
+           updated_at = NOW()`,
+        [row.ad_group.id, row.ad_group.campaign_id, row.ad_group.name, row.ad_group.status]
+      );
+      adGroupsUpserted++;
+      
+      // Upsert keyword
+      await client.query(
+        `INSERT INTO keywords (id, ad_group_id, text, match_type, status, updated_at)
+         VALUES ($1, $2, $3, $4, $5, NOW())
+         ON CONFLICT (id) DO UPDATE SET
+           ad_group_id = EXCLUDED.ad_group_id,
+           text = EXCLUDED.text,
+           match_type = EXCLUDED.match_type,
+           status = EXCLUDED.status,
+           updated_at = NOW()`,
+        [row.keyword.id, row.keyword.ad_group_id, row.keyword.text, row.keyword.match_type, row.keyword.status]
+      );
+      keywordsUpserted++;
+      
+      // Upsert daily stats
+      await client.query(
+        `INSERT INTO daily_stats (
+           date, campaign_id, ad_group_id, keyword_id,
+           impressions, clicks, cost_micros, conversions, all_conversions,
+           view_through_conversions, search_impression_share, search_budget_lost_impr_share,
+           search_rank_lost_impr_share, search_top_impression_share, search_abs_top_impression_share,
+           quality_score, synced_at
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW())
+         ON CONFLICT (date, keyword_id) DO UPDATE SET
+           impressions = EXCLUDED.impressions,
+           clicks = EXCLUDED.clicks,
+           cost_micros = EXCLUDED.cost_micros,
+           conversions = EXCLUDED.conversions,
+           all_conversions = EXCLUDED.all_conversions,
+           view_through_conversions = EXCLUDED.view_through_conversions,
+           search_impression_share = EXCLUDED.search_impression_share,
+           search_budget_lost_impr_share = EXCLUDED.search_budget_lost_impr_share,
+           search_rank_lost_impr_share = EXCLUDED.search_rank_lost_impr_share,
+           search_top_impression_share = EXCLUDED.search_top_impression_share,
+           search_abs_top_impression_share = EXCLUDED.search_abs_top_impression_share,
+           quality_score = EXCLUDED.quality_score,
+           synced_at = NOW()`,
+        [
+          row.stats.date,
+          row.stats.campaign_id,
+          row.stats.ad_group_id,
+          row.stats.keyword_id,
+          row.stats.impressions || 0,
+          row.stats.clicks || 0,
+          row.stats.cost_micros || 0,
+          row.stats.conversions || 0,
+          row.stats.all_conversions || 0,
+          row.stats.view_through_conversions || 0,
+          row.stats.search_impression_share,
+          row.stats.search_budget_lost_impr_share,
+          row.stats.search_rank_lost_impr_share,
+          row.stats.search_top_impression_share,
+          row.stats.search_abs_top_impression_share,
+          row.stats.quality_score
+        ]
+      );
+      dailyStatsUpserted++;
+    }
+    
+    await client.query("COMMIT");
+    
+    res.json({
+      success: true,
+      campaigns_upserted: campaignsUpserted,
+      ad_groups_upserted: adGroupsUpserted,
+      keywords_upserted: keywordsUpserted,
+      daily_stats_upserted: dailyStatsUpserted
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Failed to sync performance data:", err);
+    res.status(500).json({ error: "Failed to sync performance data" });
+  } finally {
+    client.release();
+  }
+});
+
 module.exports = router;

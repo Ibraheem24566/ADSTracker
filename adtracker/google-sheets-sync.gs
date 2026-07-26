@@ -1,9 +1,9 @@
 // Google Apps Script for syncing lead data from Google Sheets to AdTracker
 // Add this to your Google Sheet: Extensions > Apps Script
 
-const API_BASE_URL = "YOUR_API_URL_HERE"; // e.g., https://dgnomads-wcou.vercel.app
-const API_USERNAME = "YOUR_USERNAME";
-const API_PASSWORD = "YOUR_PASSWORD";
+const API_BASE_URL = "https://dgnomads-wcou-git-main-dg-nomads.vercel.app";
+const API_USERNAME = "adtracker";
+const API_PASSWORD = "password123";
 
 /**
  * Sync lead data from the active sheet to AdTracker
