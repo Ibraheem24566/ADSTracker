@@ -47,6 +47,14 @@ export function updateLead(id, fields) {
   return request(`/api/leads/${id}`, { method: "PATCH", body: JSON.stringify(fields) });
 }
 
+export function deleteLead(id) {
+  return request(`/api/leads/${id}`, { method: "DELETE" });
+}
+
+export function createLead(fields) {
+  return request(`/api/leads`, { method: "POST", body: JSON.stringify(fields) });
+}
+
 export function getPerformance(params) {
   const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v));
   return request(`/api/performance?${qs.toString()}`);

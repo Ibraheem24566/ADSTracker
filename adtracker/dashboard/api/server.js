@@ -19,8 +19,11 @@ app.use(
         "https://dgnomads-uhzz.vercel.app"
       ].filter(Boolean);
       
-      // Allow requests with no origin (like mobile apps or curl requests)
+      // Allow requests with no origin (like mobile apps, curl requests, or local files)
       if (!origin) return callback(null, true);
+      
+      // Allow null origin for local file testing
+      if (origin === 'null') return callback(null, true);
       
       if (allowedOrigins.some(allowed => origin === allowed || origin.startsWith(allowed.replace(/\/$/, '')))) {
         callback(null, true);

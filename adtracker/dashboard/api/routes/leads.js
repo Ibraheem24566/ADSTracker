@@ -120,6 +120,80 @@ router.patch("/:id", async (req, res) => {
   }
 });
 
+// DELETE /api/leads/:id -- delete a lead
+router.delete("/:id", async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    
+    // Delete lead edits first (foreign key)
+    await client.query("DELETE FROM lead_edits WHERE lead_id = $1", [req.params.id]);
+    
+    // Delete the lead
+    const { rows } = await client.query("DELETE FROM leads WHERE id = $1 RETURNING *", [req.params.id]);
+    
+    if (rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Lead not found" });
+    }
+    
+    await client.query("COMMIT");
+    res.json({ success: true, deleted_lead: rows[0] });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Failed to delete lead:", err);
+    res.status(500).json({ error: "Failed to delete lead" });
+  } finally {
+    client.release();
+  }
+});
+
+// POST /api/leads -- create a lead manually
+router.post("/", async (req, res) => {
+  const {
+    name, first_name, last_name, email, phone,
+    full_address, zip_code, lead_source, status,
+    value, notes, gclid, utm_source, utm_medium,
+    utm_campaign, utm_term, landing_page, raw_keyword_text,
+    web_source_campaign, campaign_id, ad_group_id, keyword_id
+  } = req.body;
+
+  if (!email && !phone) {
+    return res.status(400).json({ error: "Email or phone required" });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const fullName = [first_name, last_name].filter(Boolean).join(' ') || name || null;
+
+    const { rows } = await client.query(
+      `INSERT INTO leads (name, first_name, last_name, email, phone, full_address, zip_code,
+         gclid, utm_source, utm_medium, utm_campaign, utm_term, landing_page, raw_keyword_text,
+         web_source_campaign, campaign_id, ad_group_id, keyword_id, match_status, status, value, notes, source)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+       RETURNING *`,
+      [
+        fullName, first_name, last_name, email, phone, full_address, zip_code,
+        gclid, utm_source, utm_medium, utm_campaign, utm_term, landing_page, raw_keyword_text,
+        web_source_campaign, campaign_id, ad_group_id, keyword_id,
+        (keyword_id ? 'matched' : (gclid || raw_keyword_text ? 'no_match' : 'no_tracking_data')),
+        status || 'new', value, notes, 'manual'
+      ]
+    );
+
+    await client.query("COMMIT");
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Failed to create lead:", err);
+    res.status(500).json({ error: "Failed to create lead" });
+  } finally {
+    client.release();
+  }
+});
+
 // GET /api/leads/:id/history -- audit trail of manual edits
 router.get("/:id/history", async (req, res) => {
   try {

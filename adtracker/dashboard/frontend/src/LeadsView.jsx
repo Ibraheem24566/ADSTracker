@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { getLeads, updateLead, getCampaigns } from "./api";
+import { getLeads, updateLead, deleteLead, createLead, getCampaigns } from "./api";
 import { ArrowUpIcon, ArrowDownIcon } from "./icons";
 
 const STATUS_OPTIONS = ["new", "contacted", "qualified", "won", "lost"];
@@ -45,6 +45,8 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ status: "", campaign_id: "", search: "" });
   const [sort, setSort] = useState({ key: "created_at", dir: "desc" });
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newLead, setNewLead] = useState({});
 
   // combine manual filters with a keyword drill-down passed in from another tab
   const effectiveFilters = useMemo(
@@ -82,7 +84,41 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
   }
 
   async function commitField(id, field, value) {
+    if (field === "status") {
+      if (!confirm(`Are you sure you want to change status to "${value}"?`)) {
+        load(); // Revert if cancelled
+        return;
+      }
+    }
     await updateLead(id, { [field]: value });
+  }
+
+  async function handleDelete(id) {
+    if (!confirm("Are you sure you want to delete this lead? This action cannot be undone.")) {
+      return;
+    }
+    try {
+      await deleteLead(id);
+      load();
+    } catch (error) {
+      alert("Failed to delete lead: " + error.message);
+    }
+  }
+
+  async function handleCreate(e) {
+    e.preventDefault();
+    if (!newLead.email && !newLead.phone) {
+      alert("Email or phone is required");
+      return;
+    }
+    try {
+      await createLead(newLead);
+      setShowCreateModal(false);
+      setNewLead({});
+      load();
+    } catch (error) {
+      alert("Failed to create lead: " + error.message);
+    }
   }
 
   return (
@@ -102,6 +138,7 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
           {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         <span className="spacer" />
+        <button className="btn-primary" onClick={() => setShowCreateModal(true)}>+ Add Lead</button>
         {keywordFilter?.id && (
           <span className="badge matched" style={{ cursor: "pointer" }} onClick={onClearKeywordFilter} title="Click to clear">
             Keyword: {keywordFilter.text} ✕
@@ -126,6 +163,7 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                 <SortHeader id="status" label="Status" sort={sort} setSort={setSort} />
                 <SortHeader id="value" label="Value" sort={sort} setSort={setSort} className="num" />
                 <th>Notes</th>
+                <th>Actions</th>
                 <SortHeader id="created_at" label="Received" sort={sort} setSort={setSort} />
               </tr>
             </thead>
@@ -175,11 +213,91 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                       onBlur={(e) => commitField(lead.id, "notes", e.target.value)}
                     />
                   </td>
+                  <td>
+                    <button 
+                      className="btn-danger" 
+                      style={{ padding: "4px 8px", fontSize: 12 }}
+                      onClick={() => handleDelete(lead.id)}
+                    >
+                      Delete
+                    </button>
+                  </td>
                   <td>{new Date(lead.created_at).toLocaleDateString()}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {showCreateModal && (
+        <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Add New Lead</h2>
+            <form onSubmit={handleCreate}>
+              <div className="form-group">
+                <label>First Name</label>
+                <input
+                  type="text"
+                  value={newLead.first_name || ""}
+                  onChange={(e) => setNewLead({ ...newLead, first_name: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label>Last Name</label>
+                <input
+                  type="text"
+                  value={newLead.last_name || ""}
+                  onChange={(e) => setNewLead({ ...newLead, last_name: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label>Email *</label>
+                <input
+                  type="email"
+                  value={newLead.email || ""}
+                  onChange={(e) => setNewLead({ ...newLead, email: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label>Phone</label>
+                <input
+                  type="tel"
+                  value={newLead.phone || ""}
+                  onChange={(e) => setNewLead({ ...newLead, phone: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label>Status</label>
+                <select
+                  value={newLead.status || "new"}
+                  onChange={(e) => setNewLead({ ...newLead, status: e.target.value })}
+                >
+                  {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Value</label>
+                <input
+                  type="number"
+                  value={newLead.value || ""}
+                  onChange={(e) => setNewLead({ ...newLead, value: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label>Notes</label>
+                <input
+                  type="text"
+                  value={newLead.notes || ""}
+                  onChange={(e) => setNewLead({ ...newLead, notes: e.target.value })}
+                />
+              </div>
+              <div className="modal-actions">
+                <button type="button" onClick={() => setShowCreateModal(false)}>Cancel</button>
+                <button type="submit" className="btn-primary">Create Lead</button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
