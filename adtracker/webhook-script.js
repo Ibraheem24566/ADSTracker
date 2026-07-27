@@ -3,9 +3,9 @@
 // Place this before the closing </body> tag
 
 (function() {
-  const API_BASE_URL = "YOUR_API_URL_HERE"; // e.g., https://dgnomads-wcou.vercel.app or http://localhost:3002
-  const API_USERNAME = "YOUR_USERNAME";
-  const API_PASSWORD = "YOUR_PASSWORD";
+  const API_BASE_URL = "https://dgnomads-wcou-git-main-dg-nomads.vercel.app"; // Your production API URL
+  const API_USERNAME = "adtracker";
+  const API_PASSWORD = "password123";
 
   // Auto-detect gclid and UTM parameters from URL
   function getTrackingParams() {

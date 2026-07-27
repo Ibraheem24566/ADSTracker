@@ -3,7 +3,7 @@ const pool = require("../db");
 
 const router = express.Router();
 
-const EDITABLE_FIELDS = ["status", "value", "notes"];
+const EDITABLE_FIELDS = ["status", "value", "notes", "revenue"];
 
 // GET /api/leads?status=&campaign_id=&from=&to=&search=
 router.get("/", async (req, res) => {

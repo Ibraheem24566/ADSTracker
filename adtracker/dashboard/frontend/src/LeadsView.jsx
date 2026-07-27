@@ -163,6 +163,7 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                 <SortHeader id="status" label="Status" sort={sort} setSort={setSort} />
                 <SortHeader id="value" label="Value" sort={sort} setSort={setSort} className="num" />
                 <th>Notes</th>
+                <th>Revenue</th>
                 <th>Actions</th>
                 <SortHeader id="created_at" label="Received" sort={sort} setSort={setSort} />
               </tr>
@@ -211,6 +212,16 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                       placeholder="Add a note…"
                       onChange={(e) => setLocalField(lead.id, "notes", e.target.value)}
                       onBlur={(e) => commitField(lead.id, "notes", e.target.value)}
+                    />
+                  </td>
+                  <td className="num">
+                    <input
+                      className="inline-edit value"
+                      type="number"
+                      value={lead.revenue ?? ""}
+                      placeholder="0"
+                      onChange={(e) => setLocalField(lead.id, "revenue", e.target.value)}
+                      onBlur={(e) => commitField(lead.id, "revenue", e.target.value)}
                     />
                   </td>
                   <td>

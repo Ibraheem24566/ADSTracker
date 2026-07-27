@@ -3,6 +3,7 @@ import LoginScreen from "./LoginScreen";
 import OverviewView from "./OverviewView";
 import LeadsView from "./LeadsView";
 import PerformanceView from "./PerformanceView";
+import RevenueView from "./RevenueView";
 import ThemeToggle from "./ThemeToggle";
 import { hasCredentials, clearCredentials, getCampaigns } from "./api";
 
@@ -74,6 +75,7 @@ export default function App() {
         <button className={`tab ${tab === "overview" ? "active" : ""}`} onClick={() => setTab("overview")}>Overview</button>
         <button className={`tab ${tab === "leads" ? "active" : ""}`} onClick={() => setTab("leads")}>Leads</button>
         <button className={`tab ${tab === "performance" ? "active" : ""}`} onClick={() => setTab("performance")}>Performance</button>
+        <button className={`tab ${tab === "revenue" ? "active" : ""}`} onClick={() => setTab("revenue")}>Revenue</button>
       </div>
 
       {tab === "overview" && (
@@ -84,6 +86,9 @@ export default function App() {
       )}
       {tab === "performance" && (
         <PerformanceView onSelectKeyword={handleSelectKeyword} />
+      )}
+      {tab === "revenue" && (
+        <RevenueView />
       )}
     </div>
   );

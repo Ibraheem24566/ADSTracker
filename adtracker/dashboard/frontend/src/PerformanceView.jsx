@@ -120,6 +120,9 @@ export default function PerformanceView({ onSelectKeyword }) {
               <tr>
                 <SortHeader id={labelKey} label={groupBy === "date" ? "Date" : groupBy === "campaign" ? "Campaign" : "Keyword"} sort={sort} setSort={setSort} />
                 {groupBy === "keyword" && <th>Campaign</th>}
+                {groupBy !== "campaign" && <th>Campaign ID</th>}
+                {groupBy === "keyword" && <th>Ad Group ID</th>}
+                {groupBy === "keyword" && <th>Keyword ID</th>}
                 <SortHeader id="impressions" label="Impr." sort={sort} setSort={setSort} className="num" />
                 <SortHeader id="clicks" label="Clicks" sort={sort} setSort={setSort} className="num" />
                 <SortHeader id="ctr" label="CTR" sort={sort} setSort={setSort} className="num" />
@@ -142,6 +145,9 @@ export default function PerformanceView({ onSelectKeyword }) {
                     {groupBy === "date" ? r.date?.slice(0, 10) : groupBy === "campaign" ? r.campaign_name : r.keyword_text}
                   </td>
                   {groupBy === "keyword" && <td>{r.campaign_name}</td>}
+                  {groupBy !== "campaign" && <td style={{ fontSize: 11, color: "var(--text-muted)" }}>{r.campaign_id}</td>}
+                  {groupBy === "keyword" && <td style={{ fontSize: 11, color: "var(--text-muted)" }}>{r.ad_group_id}</td>}
+                  {groupBy === "keyword" && <td style={{ fontSize: 11, color: "var(--text-muted)" }}>{r.keyword_id}</td>}
                   <td className="num">{r.impressions.toLocaleString()}</td>
                   <td className="num">{r.clicks.toLocaleString()}</td>
                   <td className="num">{fmtPct(r.ctr)}</td>
