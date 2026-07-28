@@ -64,6 +64,7 @@ export function getCampaigns() {
   return request("/api/campaigns");
 }
 
-export function getOverview(days = 7) {
-  return request(`/api/overview?days=${days}`);
+export function getOverview(params = {}) {
+  const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v));
+  return request(`/api/overview?${qs.toString()}`);
 }

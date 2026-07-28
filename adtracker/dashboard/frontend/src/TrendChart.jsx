@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 
 // Builds a smoothed path (simple Catmull-Rom -> cubic Bezier conversion)
 // instead of straight polyline segments, purely a visual upgrade -- the
@@ -26,6 +27,7 @@ function smoothPath(points) {
 export default function TrendChart({ data, series }) {
   const svgRef = useRef(null);
   const [hoverIdx, setHoverIdx] = useState(null);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
   if (!data || data.length === 0) return null;
 
@@ -55,13 +57,45 @@ export default function TrendChart({ data, series }) {
     const ratio = (x - padding) / innerW;
     const idx = Math.round(ratio * (data.length - 1));
     setHoverIdx(Math.max(0, Math.min(data.length - 1, idx)));
+    
+    // Track mouse position for tooltip positioning
+    setMousePos({ x: e.clientX, y: e.clientY });
   }
 
   const hovered = hoverIdx !== null ? data[hoverIdx] : null;
-  const tooltipX = hoverIdx !== null ? (xAt(hoverIdx) / width) * 100 : 0;
-  const tooltipY = hoverIdx !== null ? (Math.min(...seriesPoints.map((p) => p[hoverIdx][1])) / height) * 100 : 0;
 
-  return (
+  // Calculate tooltip position with edge detection
+  const getTooltipPosition = () => {
+    if (!hovered) return { left: 0, top: 0, transform: 'translate(-50%, -100%)' };
+    
+    const tooltipWidth = 200;
+    const tooltipHeight = 150;
+    const margin = 10;
+    
+    let x = mousePos.x;
+    let y = mousePos.y;
+    let transform = 'translate(-50%, -100%)';
+    
+    // Check right edge
+    if (x + tooltipWidth / 2 > window.innerWidth - margin) {
+      transform = 'translate(-100%, -100%)';
+    }
+    // Check left edge
+    else if (x - tooltipWidth / 2 < margin) {
+      transform = 'translate(0%, -100%)';
+    }
+    
+    // Check top edge
+    if (y - tooltipHeight < margin) {
+      transform = transform.replace('-100%', '10%');
+    }
+    
+    return { left: x, top: y, transform };
+  };
+
+  const tooltipPosition = getTooltipPosition();
+
+  const chart = (
     <div style={{ position: "relative", background: "var(--surface)", borderRadius: "var(--radius)", padding: "16px", border: "1px solid var(--border)" }}>
       <svg
         ref={svgRef}
@@ -156,35 +190,50 @@ export default function TrendChart({ data, series }) {
           ))}
         </g>
       </svg>
-
-      {hovered && (
-        <div 
-          className="chart-tooltip" 
-          style={{ 
-            left: `${tooltipX}%`, 
-            top: `${tooltipY}%`,
-            background: "var(--surface)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius)",
-            padding: "12px",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-            minWidth: "150px"
-          }}
-        >
-          <div className="t-date" style={{ fontSize: "12px", fontWeight: "600", marginBottom: "8px", color: "var(--text-muted)" }}>
-            {hovered.date}
-          </div>
-          {series.map((s) => (
-            <div className="t-row" key={s.key} style={{ display: "flex", alignItems: "center", marginBottom: "4px" }}>
-              <span className="t-dot" style={{ background: s.color, width: "8px", height: "8px", borderRadius: "50%", marginRight: "8px" }} />
-              <span style={{ fontSize: "13px", color: "var(--text-muted)", marginRight: "8px" }}>{s.label}:</span>
-              <span style={{ fontSize: "13px", fontWeight: "600", color: "var(--text)" }}>
-                {typeof hovered[s.key] === "number" ? hovered[s.key].toLocaleString(undefined, { maximumFractionDigits: 2 }) : hovered[s.key]}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
+  );
+
+  // Render tooltip via portal to document.body to escape parent container constraints
+  const tooltip = hovered ? createPortal(
+    <div 
+      className="chart-tooltip" 
+      style={{
+        position: "fixed",
+        left: `${tooltipPosition.left}px`,
+        top: `${tooltipPosition.top}px`,
+        transform: tooltipPosition.transform,
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--radius)",
+        padding: "12px",
+        boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+        minWidth: "150px",
+        maxWidth: "200px",
+        zIndex: 9999,
+        pointerEvents: "none",
+        wordWrap: "break-word"
+      }}
+    >
+      <div className="t-date" style={{ fontSize: "12px", fontWeight: "600", marginBottom: "8px", color: "var(--text-muted)" }}>
+        {hovered.date}
+      </div>
+      {series.map((s) => (
+        <div className="t-row" key={s.key} style={{ display: "flex", alignItems: "center", marginBottom: "4px" }}>
+          <span className="t-dot" style={{ background: s.color, width: "8px", height: "8px", borderRadius: "50%", marginRight: "8px" }} />
+          <span style={{ fontSize: "13px", color: "var(--text-muted)", marginRight: "8px" }}>{s.label}:</span>
+          <span style={{ fontSize: "13px", fontWeight: "600", color: "var(--text)" }}>
+            {typeof hovered[s.key] === "number" ? hovered[s.key].toLocaleString(undefined, { maximumFractionDigits: 2 }) : hovered[s.key]}
+          </span>
+        </div>
+      ))}
+    </div>,
+    document.body
+  ) : null;
+
+  return (
+    <>
+      {chart}
+      {tooltip}
+    </>
   );
 }

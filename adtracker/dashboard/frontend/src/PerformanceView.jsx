@@ -37,7 +37,7 @@ export default function PerformanceView({ onSelectKeyword }) {
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [groupBy, setGroupBy] = useState("keyword");
-  const [range, setRange] = useState({ from: todayMinus(30), to: todayMinus(0) });
+  const [range, setRange] = useState({ from: todayMinus(7), to: todayMinus(0) });
   const [campaignId, setCampaignId] = useState("");
   const [sort, setSort] = useState({ key: "cost", dir: "desc" });
 

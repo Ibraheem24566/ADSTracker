@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { getLeads, updateLead, deleteLead, createLead, getCampaigns } from "./api";
 import { ArrowUpIcon, ArrowDownIcon } from "./icons";
 
-const STATUS_OPTIONS = ["new", "contacted", "qualified", "won", "lost"];
+const STATUS_OPTIONS = ["Contacted", "Appointment Sets", "Site Assessment", "Closed Won", "Closed Lost"];
 
 function formatMatchLabel(status) {
   return { matched: "Matched", no_match: "No match", no_tracking_data: "No tracking data", manual: "Manual" }[status] || status;
@@ -38,11 +38,17 @@ function SortHeader({ id, label, sort, setSort, className }) {
   );
 }
 
+function todayMinus(days) {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+
 export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
   const [leads, setLeads] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState({ status: "", campaign_id: "", search: "" });
+  const [filters, setFilters] = useState({ status: "", campaign_id: "", search: "", from: "", to: "" });
   const [sort, setSort] = useState({ key: "created_at", dir: "desc" });
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -159,14 +165,14 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
       first_name: lead.first_name || "",
       last_name: lead.last_name || "",
       email: lead.email || "",
-      phone: lead.phone || "",
-      status: lead.status || "new",
+      status: lead.status || "Contacted",
       revenue: lead.revenue || "",
-      notes: lead.notes || "",
       campaign_id: lead.campaign_id || "",
       raw_keyword_text: lead.raw_keyword_text || "",
       gclid: lead.gclid || "",
-      created_at: lead.created_at ? lead.created_at.split('T')[0] : new Date().toISOString().split('T')[0]
+      created_at: lead.created_at ? lead.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+      conversion_date: lead.conversion_date ? lead.conversion_date.split('T')[0] : new Date().toISOString().split('T')[0],
+      status_updated_at: lead.status_updated_at ? lead.status_updated_at.split('T')[0] : ""
     });
     setShowEditModal(true);
   }
@@ -178,12 +184,18 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
       const updateData = {
         status: editingLead.status,
         revenue: editingLead.revenue,
-        notes: editingLead.notes,
         campaign_id: editingLead.campaign_id || null,
         raw_keyword_text: editingLead.raw_keyword_text || null,
         gclid: editingLead.gclid || null,
-        created_at: editingLead.created_at
+        created_at: editingLead.created_at,
+        conversion_date: editingLead.conversion_date
       };
+      
+      // Only include status_updated_at if it's not blank (manual override)
+      if (editingLead.status_updated_at && editingLead.status_updated_at.trim() !== "") {
+        updateData.status_updated_at = editingLead.status_updated_at;
+      }
+      
       await updateLead(editingLead.id, updateData);
       setShowEditModal(false);
       setEditingLead({});
@@ -222,6 +234,7 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
           placeholder="Search name or email"
           value={filters.search}
           onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+          style={{ appearance: 'none', WebkitAppearance: 'none', backgroundImage: 'none', paddingRight: '14px' }}
         />
         <select value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}>
           <option value="">All statuses</option>
@@ -231,6 +244,16 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
           <option value="">All campaigns</option>
           {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
+        <input 
+          type="date" 
+          value={filters.from} 
+          onChange={(e) => setFilters((f) => ({ ...f, from: e.target.value }))} 
+        />
+        <input 
+          type="date" 
+          value={filters.to} 
+          onChange={(e) => setFilters((f) => ({ ...f, to: e.target.value }))} 
+        />
         <span className="spacer" />
         <button className="btn btn-primary btn-sm" onClick={() => setShowCreateModal(true)}>+ Add Lead</button>
         {keywordFilter?.id && (
@@ -238,7 +261,9 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
             Keyword: {keywordFilter.text} ✕
           </span>
         )}
-        {!loading && <span style={{ fontSize: 12, color: "var(--text-faint)" }}>{sortedLeads.length} lead{sortedLeads.length === 1 ? "" : "s"}</span>}
+        <span style={{ fontSize: 12, color: "var(--text-faint)", minWidth: "60px", display: "inline-block", textAlign: "right" }}>
+          {loading ? "—" : `${sortedLeads.length} lead${sortedLeads.length === 1 ? "" : "s"}`}
+        </span>
       </div>
 
       {loading ? (
@@ -255,10 +280,11 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                 <SortHeader id="campaign" label="Campaign" sort={sort} setSort={setSort} />
                 <th>Attribution</th>
                 <SortHeader id="status" label="Status" sort={sort} setSort={setSort} />
-                <th>Notes</th>
                 <th>Revenue</th>
                 <th>Actions</th>
                 <SortHeader id="created_at" label="Received" sort={sort} setSort={setSort} />
+                <SortHeader id="conversion_date" label="Conversion Date" sort={sort} setSort={setSort} />
+                <th>Status Updated</th>
                 <th>Click ID</th>
               </tr>
             </thead>
@@ -277,27 +303,7 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                   <td>{lead.keyword_text || lead.raw_keyword_text || "—"}</td>
                   <td>{lead.campaign_name || "—"}</td>
                   <td><span className={`badge ${lead.match_status}`}>{formatMatchLabel(lead.match_status)}</span></td>
-                  <td>
-                    <select
-                      className="inline-edit"
-                      value={lead.status}
-                      onChange={(e) => {
-                        setLocalField(lead.id, "status", e.target.value);
-                        commitField(lead.id, "status", e.target.value);
-                      }}
-                    >
-                      {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </td>
-                  <td>
-                    <input
-                      className="inline-edit"
-                      value={lead.notes ?? ""}
-                      placeholder="Add a note…"
-                      onChange={(e) => setLocalField(lead.id, "notes", e.target.value)}
-                      onBlur={(e) => commitField(lead.id, "notes", e.target.value)}
-                    />
-                  </td>
+                  <td>{lead.status || "—"}</td>
                   <td className="num" style={{ minWidth: 100 }}>
                     <input
                       className="inline-edit value"
@@ -326,7 +332,9 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                     </button>
                   </td>
                   <td>{new Date(lead.created_at).toLocaleDateString()}</td>
-                  <td style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-mono)", maxWidth: 250, overflow: "hidden", textOverflow: "ellipsis" }} title={lead.gclid || ""}>{lead.gclid || "—"}</td>
+                  <td>{lead.conversion_date ? new Date(lead.conversion_date).toLocaleDateString() : "—"}</td>
+                  <td>{lead.status_updated_at ? new Date(lead.status_updated_at).toLocaleDateString() : "—"}</td>
+                  <td style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>{lead.gclid || "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -365,14 +373,6 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                 />
               </div>
               <div className="form-group">
-                <label>Phone</label>
-                <input
-                  type="tel"
-                  value={newLead.phone || ""}
-                  onChange={(e) => setNewLead({ ...newLead, phone: e.target.value })}
-                />
-              </div>
-              <div className="form-group">
                 <label>Campaign</label>
                 <select
                   value={newLead.campaign_id || ""}
@@ -394,7 +394,7 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
               <div className="form-group">
                 <label>Status</label>
                 <select
-                  value={newLead.status || "new"}
+                  value={newLead.status || "Contacted"}
                   onChange={(e) => setNewLead({ ...newLead, status: e.target.value })}
                 >
                   {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -408,14 +408,6 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                   value={newLead.revenue || ""}
                   onChange={(e) => setNewLead({ ...newLead, revenue: e.target.value })}
                   placeholder="0.00"
-                />
-              </div>
-              <div className="form-group">
-                <label>Notes</label>
-                <input
-                  type="text"
-                  value={newLead.notes || ""}
-                  onChange={(e) => setNewLead({ ...newLead, notes: e.target.value })}
                 />
               </div>
               <div className="form-group">
@@ -433,6 +425,14 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                   type="date"
                   value={newLead.created_at || new Date().toISOString().split('T')[0]}
                   onChange={(e) => setNewLead({ ...newLead, created_at: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label>Conversion Date</label>
+                <input
+                  type="date"
+                  value={newLead.conversion_date || new Date().toISOString().split('T')[0]}
+                  onChange={(e) => setNewLead({ ...newLead, conversion_date: e.target.value })}
                 />
               </div>
               <div className="modal-actions">
@@ -474,14 +474,6 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                 />
               </div>
               <div className="form-group">
-                <label>Phone</label>
-                <input
-                  type="tel"
-                  value={editingLead.phone || ""}
-                  onChange={(e) => setEditingLead({ ...editingLead, phone: e.target.value })}
-                />
-              </div>
-              <div className="form-group">
                 <label>Campaign</label>
                 <select
                   value={editingLead.campaign_id || ""}
@@ -520,14 +512,6 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                 />
               </div>
               <div className="form-group">
-                <label>Notes</label>
-                <input
-                  type="text"
-                  value={editingLead.notes || ""}
-                  onChange={(e) => setEditingLead({ ...editingLead, notes: e.target.value })}
-                />
-              </div>
-              <div className="form-group">
                 <label>Click ID (GCLID)</label>
                 <input
                   type="text"
@@ -543,6 +527,26 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                   value={editingLead.created_at || new Date().toISOString().split('T')[0]}
                   onChange={(e) => setEditingLead({ ...editingLead, created_at: e.target.value })}
                 />
+              </div>
+              <div className="form-group">
+                <label>Conversion Date</label>
+                <input
+                  type="date"
+                  value={editingLead.conversion_date || new Date().toISOString().split('T')[0]}
+                  onChange={(e) => setEditingLead({ ...editingLead, conversion_date: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label>Status Updated Date</label>
+                <input
+                  type="date"
+                  value={editingLead.status_updated_at || ""}
+                  onChange={(e) => setEditingLead({ ...editingLead, status_updated_at: e.target.value })}
+                  placeholder="Leave blank to auto-set on status change"
+                />
+                <small style={{ color: "var(--text-muted)", fontSize: "11px" }}>
+                  Leave blank to auto-set to current time when status changes
+                </small>
               </div>
               <div className="modal-actions">
                 <button type="button" className="btn" onClick={() => setShowEditModal(false)}>Cancel</button>

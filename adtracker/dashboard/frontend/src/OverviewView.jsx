@@ -14,33 +14,41 @@ function fmtChange(current, previous) {
   return `${sign} ${Math.abs(change).toFixed(0)}%`;
 }
 
+function todayMinus(days) {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+
 const SEVERITY_LABEL = { high: "High", medium: "Medium", low: "Low" };
 
 const METRIC_OPTIONS = [
   { key: "revenue", label: "Revenue", color: "var(--success)" },
-  { key: "cost", label: "Spend", color: "var(--accent)" },
-  { key: "leads", label: "Leads", color: "var(--warning)" },
+  { key: "cost", label: "Spend", color: "#000000" },
+  { key: "conversions", label: "Conversions", color: "#2563eb" },
+  { key: "impressions", label: "Impressions", color: "#eab308" },
+  { key: "clicks", label: "Clicks", color: "#06b6d4" },
 ];
 
 export default function OverviewView({ onSelectKeyword }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [days, setDays] = useState(7);
+  const [range, setRange] = useState({ from: todayMinus(7), to: todayMinus(0) });
   const [chartMetrics, setChartMetrics] = useState(["revenue", "cost"]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const overview = await getOverview(days);
+      const overview = await getOverview(range);
       setData(overview);
     } finally {
       setLoading(false);
     }
-  }, [days]);
+  }, [range]);
 
   useEffect(() => { load(); }, [load]);
 
-  if (loading || !data) return <div className="loading">Loading overview…</div>;
+  if (!data) return <div className="loading">Loading overview…</div>;
 
   const { current, previous, trend, alerts, rejection_insight, period } = data;
 
@@ -59,174 +67,216 @@ export default function OverviewView({ onSelectKeyword }) {
   return (
     <div>
       <div className="filters">
-        <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
-          <option value={7}>Last 7 days</option>
-          <option value={14}>Last 14 days</option>
-          <option value={30}>Last 30 days</option>
-        </select>
+        <input 
+          type="date" 
+          value={range.from} 
+          onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))} 
+        />
+        <input 
+          type="date" 
+          value={range.to} 
+          onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))} 
+        />
         <span className="spacer" />
         <span style={{ fontSize: 12, color: "var(--text-faint)" }}>{period.from} → {period.to}</span>
       </div>
 
-      <div className="summary-row fade-in">
-        <StatCard
-          label="Revenue"
-          value={fmtMoney(current.revenue)}
-          subtitle={fmtChange(current.revenue, previous.revenue)}
-          extra={`Best day: ${bestDayName}`}
-          trendColor={current.revenue >= previous.revenue ? "var(--success)" : "var(--danger)"}
-        />
-        <StatCard
-          label="Profit"
-          value={fmtMoney(current.profit)}
-          subtitle={fmtChange(current.profit, previous.profit)}
-          extra={`Margin: ${fmtPercent(current.margin)}`}
-          trendColor={current.profit >= previous.profit ? "var(--success)" : "var(--danger)"}
-        />
-        <StatCard
-          label="ROI"
-          value={fmtPercent(current.roi)}
-          subtitle={fmtChange(current.roi, previous.roi)}
-          extra={current.roi >= 100 ? "Excellent" : current.roi >= 50 ? "Good" : "Needs improvement"}
-          trendColor={current.roi >= previous.roi ? "var(--success)" : "var(--danger)"}
-        />
-        <StatCard
-          label="Leads"
-          value={current.total_leads}
-          subtitle={fmtChange(current.total_leads, previous.total_leads)}
-          extra={`Booking Rate: ${fmtPercent(current.booking_rate)}`}
-          trendColor={current.total_leads >= previous.total_leads ? "var(--success)" : "var(--danger)"}
-        />
-        <StatCard
-          label="Spend"
-          value={fmtMoney(current.cost)}
-          subtitle={fmtChange(current.cost, previous.cost)}
-          extra={`Budget Used: 48%`}
-          trendColor={current.cost <= previous.cost ? "var(--success)" : "var(--danger)"}
-        />
-        <StatCard
-          label="Cost / Lead"
-          value={fmtMoney(current.cost_per_lead)}
-          subtitle={fmtChange(current.cost_per_lead, previous.cost_per_lead)}
-          extra="Industry Avg: £52"
-          trendColor={current.cost_per_lead <= previous.cost_per_lead ? "var(--success)" : "var(--danger)"}
-        />
-      </div>
+      {loading && <div className="loading">Loading overview…</div>}
 
-      <div className="section-heading">
-        <h3>Insights</h3>
-        <span className="sub">generated from this period's data</span>
-      </div>
-      <InsightsPanel
-        current={current}
-        previous={previous}
-        alerts={alerts}
-        rejectionInsight={rejection_insight}
-      />
-
-      {trend.length > 0 && (
+      {!loading && (
         <>
-          <div className="section-heading">
-            <h3>Performance trend</h3>
-            <div className="pill-group">
-              {METRIC_OPTIONS.map((m) => (
-                <button
-                  key={m.key}
-                  className={`btn ${chartMetrics.includes(m.key) ? "active" : ""}`}
-                  onClick={() => toggleMetric(m.key)}
-                  style={chartMetrics.includes(m.key) ? { color: m.color } : undefined}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="table-wrap" style={{ padding: 16, marginBottom: 24 }}>
-            <TrendChart
-              data={trend}
-              series={METRIC_OPTIONS.filter((m) => chartMetrics.includes(m.key))}
+          <div className="summary-row fade-in">
+            <StatCard
+              label="Revenue"
+              value={fmtMoney(current.revenue)}
+              subtitle={fmtChange(current.revenue, previous.revenue)}
+              extra={`Best day: ${bestDayName}`}
+              trendColor={current.revenue >= previous.revenue ? "var(--success)" : "var(--danger)"}
+            />
+            <StatCard
+              label="Profit"
+              value={fmtMoney(current.profit)}
+              subtitle={fmtChange(current.profit, previous.profit)}
+              extra={`Margin: ${fmtPercent(current.margin)}`}
+              trendColor={current.profit >= previous.profit ? "var(--success)" : "var(--danger)"}
+            />
+            <StatCard
+              label="ROI"
+              value={fmtPercent(current.roi)}
+              subtitle={fmtChange(current.roi, previous.roi)}
+              extra={current.roi >= 100 ? "Excellent" : current.roi >= 50 ? "Good" : "Needs improvement"}
+              trendColor={current.roi >= previous.roi ? "var(--success)" : "var(--danger)"}
+            />
+            <StatCard
+              label="Leads"
+              value={current.total_leads}
+              subtitle={fmtChange(current.total_leads, previous.total_leads)}
+              extra={`Booking Rate: ${fmtPercent(current.booking_rate)}`}
+              trendColor={current.total_leads >= previous.total_leads ? "var(--success)" : "var(--danger)"}
+            />
+            <StatCard
+              label="Spend"
+              value={fmtMoney(current.cost)}
+              subtitle={fmtChange(current.cost, previous.cost)}
+              extra={`Budget Used: 48%`}
+              trendColor={current.cost <= previous.cost ? "var(--success)" : "var(--danger)"}
             />
           </div>
-        </>
-      )}
 
-      {alerts.length > 0 && (
-        <>
-          <div className="section-heading"><h3>Needs attention</h3></div>
-          <div className="table-wrap" style={{ marginBottom: 24 }}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Severity</th>
-                  <th>Keyword</th>
-                  <th>Campaign</th>
-                  <th>Issue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {alerts.map((a, i) => (
-                  <tr key={i}>
-                    <td><span className={`badge ${a.severity === "high" ? "lost" : "new"}`}>{SEVERITY_LABEL[a.severity]}</span></td>
-                    <td
-                      style={{ cursor: onSelectKeyword ? "pointer" : "default", textDecoration: onSelectKeyword ? "underline" : "none" }}
-                      onClick={() => onSelectKeyword?.(a.keyword_id, a.keyword_text)}
+          <div className="summary-row fade-in">
+            <StatCard
+              label="Impressions"
+              value={current.impressions.toLocaleString()}
+              subtitle={fmtChange(current.impressions, previous.impressions)}
+              extra=""
+              trendColor={current.impressions >= previous.impressions ? "var(--success)" : "var(--danger)"}
+            />
+            <StatCard
+              label="Clicks"
+              value={current.clicks.toLocaleString()}
+              subtitle={fmtChange(current.clicks, previous.clicks)}
+              extra=""
+              trendColor={current.clicks >= previous.clicks ? "var(--success)" : "var(--danger)"}
+            />
+            <StatCard
+              label="CTR"
+              value={fmtPercent(current.ctr)}
+              subtitle={fmtChange(current.ctr, previous.ctr)}
+              extra=""
+              trendColor={current.ctr >= previous.ctr ? "var(--success)" : "var(--danger)"}
+            />
+            <StatCard
+              label="Avg CPC"
+              value={fmtMoney(current.avg_cpc)}
+              subtitle={fmtChange(current.avg_cpc, previous.avg_cpc)}
+              extra=""
+              trendColor={current.avg_cpc <= previous.avg_cpc ? "var(--success)" : "var(--danger)"}
+            />
+            <StatCard
+              label="Cost / Conversion"
+              value={fmtMoney(current.cost_per_conversion)}
+              subtitle={fmtChange(current.cost_per_conversion, previous.cost_per_conversion)}
+              extra=""
+              trendColor={current.cost_per_conversion <= previous.cost_per_conversion ? "var(--success)" : "var(--danger)"}
+            />
+          </div>
+
+          <div className="section-heading fade-in">
+            <h3>Insights</h3>
+            <span className="sub">generated from this period's data</span>
+          </div>
+          <div className="fade-in">
+            <InsightsPanel
+              current={current}
+              previous={previous}
+              alerts={alerts}
+              rejectionInsight={rejection_insight}
+            />
+          </div>
+
+          {trend.length > 0 && (
+            <>
+              <div className="section-heading fade-in">
+                <h3>Performance trend</h3>
+                <div className="pill-group">
+                  {METRIC_OPTIONS.map((m) => (
+                    <button
+                      key={m.key}
+                      className={`btn ${chartMetrics.includes(m.key) ? "active" : ""}`}
+                      onClick={() => toggleMetric(m.key)}
+                      style={chartMetrics.includes(m.key) ? { color: m.color } : undefined}
                     >
-                      {a.keyword_text}
-                    </td>
-                    <td>{a.campaign_name}</td>
-                    <td>{a.message}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-
-      <div className="section-heading"><h3>Recent activity</h3></div>
-      <RecentActivity onSelectKeyword={onSelectKeyword} />
-
-      {rejection_insight.breakdown.length > 0 && (
-        <>
-          <div className="section-heading"><h3>Lead quality: why leads get rejected</h3></div>
-          <div className="summary-row">
-            {rejection_insight.breakdown.map((r) => (
-              <div className="stat-card" key={r.reason}>
-                <div className="label">{r.reason}</div>
-                <div className="value-row"><div className="value">{r.count}</div></div>
-              </div>
-            ))}
-          </div>
-
-          {rejection_insight.by_keyword.length > 0 && (
-            <div className="table-wrap" style={{ marginBottom: 24 }}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Keyword</th>
-                    <th>Campaign</th>
-                    <th className="num">Sold</th>
-                    <th className="num">Rejected</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rejection_insight.by_keyword.map((r, i) => (
-                    <tr key={i}>
-                      <td>{r.keyword_text}</td>
-                      <td>{r.campaign_name}</td>
-                      <td className="num">{r.sold_count}</td>
-                      <td className="num">{r.rejected_count}</td>
-                    </tr>
+                      {m.label}
+                    </button>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </div>
+              </div>
+              <div className="table-wrap fade-in" style={{ padding: 16, marginBottom: 24 }}>
+                <TrendChart
+                  data={trend}
+                  series={METRIC_OPTIONS.filter((m) => chartMetrics.includes(m.key))}
+                />
+              </div>
+            </>
+          )}
+
+          {alerts.length > 0 && (
+            <>
+              <div className="section-heading fade-in"><h3>Needs attention</h3></div>
+              <div className="table-wrap fade-in" style={{ marginBottom: 24 }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Severity</th>
+                      <th>Keyword</th>
+                      <th>Campaign</th>
+                      <th>Issue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {alerts.map((a, i) => (
+                      <tr key={i}>
+                        <td><span className={`badge ${a.severity === "high" ? "lost" : "new"}`}>{SEVERITY_LABEL[a.severity]}</span></td>
+                        <td
+                          style={{ cursor: onSelectKeyword ? "pointer" : "default", textDecoration: onSelectKeyword ? "underline" : "none" }}
+                          onClick={() => onSelectKeyword?.(a.keyword_id, a.keyword_text)}
+                        >
+                          {a.keyword_text}
+                        </td>
+                        <td>{a.campaign_name}</td>
+                        <td>{a.message}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
+          <div className="section-heading fade-in"><h3>Recent activity</h3></div>
+          <div className="fade-in">
+            <RecentActivity onSelectKeyword={onSelectKeyword} />
+          </div>
+
+          {rejection_insight.breakdown.length > 0 && (
+            <>
+              <div className="section-heading fade-in"><h3>Lead quality: why leads get rejected</h3></div>
+              <div className="summary-row fade-in">
+                {rejection_insight.breakdown.map((r) => (
+                  <div className="stat-card" key={r.reason}>
+                    <div className="label">{r.reason}</div>
+                    <div className="value-row"><div className="value">{r.count}</div></div>
+                  </div>
+                ))}
+              </div>
+
+              {rejection_insight.by_keyword.length > 0 && (
+                <div className="table-wrap fade-in" style={{ marginBottom: 24 }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Keyword</th>
+                        <th>Campaign</th>
+                        <th className="num">Sold</th>
+                        <th className="num">Rejected</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rejection_insight.by_keyword.map((r, i) => (
+                        <tr key={i}>
+                          <td>{r.keyword_text}</td>
+                          <td>{r.campaign_name}</td>
+                          <td className="num">{r.sold_count}</td>
+                          <td className="num">{r.rejected_count}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
           )}
         </>
-      )}
-
-      {alerts.length === 0 && rejection_insight.breakdown.length === 0 && (
-        <div className="empty-state">No alerts and no rejection data yet for this period.</div>
       )}
     </div>
   );

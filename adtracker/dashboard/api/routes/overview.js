@@ -26,6 +26,9 @@ async function getPeriodTotals(from, to) {
     [from, to]
   );
 
+  const stats = rows[0];
+  console.log('Overview stats:', stats);
+
   const { rows: leadRows } = await pool.query(
     `SELECT
        COUNT(*) AS total_leads,
@@ -37,28 +40,38 @@ async function getPeriodTotals(from, to) {
     [from, to]
   );
 
-  const stats = rows[0];
   const leads = leadRows[0];
+  console.log('Overview leads:', leads);
+
   const cost = Number(stats.cost_micros) / 1_000_000;
   const totalLeads = Number(leads.total_leads);
   const totalRevenue = Number(leads.total_revenue);
   const profit = totalRevenue - cost;
+  const impressions = Number(stats.impressions);
+  const clicks = Number(stats.clicks);
+  const conversions = Number(stats.conversions);
 
-  return {
-    impressions: Number(stats.impressions),
-    clicks: Number(stats.clicks),
+  const result = {
+    impressions,
+    clicks,
     cost,
-    conversions: Number(stats.conversions),
+    conversions,
     total_leads: totalLeads,
     sold_leads: Number(leads.sold_leads),
     rejected_leads: Number(leads.rejected_leads),
-    cost_per_lead: totalLeads > 0 ? cost / totalLeads : null,
+    cost_per_lead: totalLeads > 0 ? cost / totalLeads : 0,
     revenue: totalRevenue,
     profit: profit,
     roi: cost > 0 ? ((profit / cost) * 100) : 0,
     margin: totalRevenue > 0 ? ((profit / totalRevenue) * 100) : 0,
     booking_rate: totalLeads > 0 ? ((Number(leads.sold_leads) / totalLeads) * 100) : 0,
+    ctr: impressions > 0 ? (clicks / impressions * 100) : 0,
+    avg_cpc: clicks > 0 ? (cost / clicks) : 0,
+    cost_per_conversion: conversions > 0 ? (cost / conversions) : 0,
   };
+
+  console.log('Overview result:', result);
+  return result;
 }
 
 async function getTrend(from, to) {
@@ -67,6 +80,8 @@ async function getTrend(from, to) {
        ds.date,
        SUM(ds.cost_micros) AS cost_micros,
        SUM(ds.clicks) AS clicks,
+       SUM(ds.impressions) AS impressions,
+       SUM(ds.conversions) AS conversions,
        COALESCE(lc.lead_count, 0) AS lead_count,
        COALESCE(lr.revenue_sum, 0) AS revenue
      FROM daily_stats ds
@@ -86,13 +101,18 @@ async function getTrend(from, to) {
     [from, to]
   );
 
-  return rows.map((r) => ({
+  const trendData = rows.map((r) => ({
     date: r.date.toISOString().slice(0, 10),
     cost: Number(r.cost_micros) / 1_000_000,
     clicks: Number(r.clicks),
+    impressions: Number(r.impressions),
+    conversions: Number(r.conversions),
     leads: Number(r.lead_count),
     revenue: Number(r.revenue),
   }));
+
+  console.log('Overview trend data:', trendData);
+  return trendData;
 }
 
 async function getAlerts(from, to) {
@@ -231,13 +251,21 @@ async function getRejectionInsight(from, to) {
   };
 }
 
-// GET /api/overview?days=7
+// GET /api/overview?from=&to=
 router.get("/", async (req, res) => {
-  const days = parseInt(req.query.days, 10) || 7;
-  const currentFrom = dateNDaysAgo(days - 1);
-  const currentTo = dateNDaysAgo(0);
-  const previousFrom = dateNDaysAgo(days * 2 - 1);
-  const previousTo = dateNDaysAgo(days);
+  const { from, to } = req.query;
+  
+  // If from/to not provided, default to last 7 days
+  const currentFrom = from || dateNDaysAgo(7 - 1);
+  const currentTo = to || dateNDaysAgo(0);
+  
+  // Calculate previous period of same length
+  const daysDiff = Math.ceil((new Date(currentTo) - new Date(currentFrom)) / (1000 * 60 * 60 * 24));
+  const previousFrom = dateNDaysAgo(daysDiff * 2 - 1);
+  const previousTo = dateNDaysAgo(daysDiff);
+
+  console.log('Overview API - current period:', { from: currentFrom, to: currentTo });
+  console.log('Overview API - previous period:', { from: previousFrom, to: previousTo });
 
   try {
     const [current, previous, trend, alerts, rejectionInsight] = await Promise.all([
@@ -249,7 +277,7 @@ router.get("/", async (req, res) => {
     ]);
 
     res.json({
-      period: { from: currentFrom, to: currentTo, days },
+      period: { from: currentFrom, to: currentTo },
       current,
       previous,
       trend,

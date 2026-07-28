@@ -3,7 +3,36 @@ const pool = require("../db");
 
 const router = express.Router();
 
-const EDITABLE_FIELDS = ["status", "value", "notes", "revenue", "campaign_id", "raw_keyword_text", "gclid", "created_at"];
+// Add conversion_date column if it doesn't exist
+pool.query(`
+  ALTER TABLE leads 
+  ADD COLUMN IF NOT EXISTS conversion_date TIMESTAMP
+`).catch(err => {
+  if (err.code !== '42701') { // Ignore if column already exists
+    console.error('Failed to add conversion_date column:', err);
+  }
+});
+
+// Add status_updated_at column if it doesn't exist
+pool.query(`
+  ALTER TABLE leads 
+  ADD COLUMN IF NOT EXISTS status_updated_at TIMESTAMP
+`).catch(err => {
+  if (err.code !== '42701') { // Ignore if column already exists
+    console.error('Failed to add status_updated_at column:', err);
+  }
+});
+
+// Backfill status_updated_at for existing records that have NULL values
+pool.query(`
+  UPDATE leads 
+  SET status_updated_at = created_at 
+  WHERE status_updated_at IS NULL
+`).catch(err => {
+  console.error('Failed to backfill status_updated_at:', err);
+});
+
+const EDITABLE_FIELDS = ["status", "value", "revenue", "campaign_id", "raw_keyword_text", "gclid", "created_at", "conversion_date", "status_updated_at"];
 
 // GET /api/leads?status=&campaign_id=&from=&to=&search=
 router.get("/", async (req, res) => {
@@ -41,11 +70,11 @@ router.get("/", async (req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT
-         l.id, l.name, l.email, l.phone, l.gclid, l.raw_keyword_text,
-         l.match_status, l.status, l.value, l.notes, l.revenue, l.source,
+         l.id, l.name, l.first_name, l.last_name, l.email, l.gclid, l.raw_keyword_text,
+         l.match_status, l.status, l.value, l.revenue, l.source,
          l.sold, l.rejection_reason,
-         l.created_at, l.updated_at,
-         c.name AS campaign_name, ag.name AS ad_group_name, k.text AS keyword_text
+         l.created_at, l.updated_at, l.conversion_date, l.status_updated_at,
+         l.campaign_id, c.name AS campaign_name, ag.name AS ad_group_name, k.text AS keyword_text
        FROM leads l
        LEFT JOIN campaigns c ON c.id = l.campaign_id
        LEFT JOIN ad_groups ag ON ag.id = l.ad_group_id
@@ -91,6 +120,59 @@ router.patch("/:id", async (req, res) => {
       params.push(req.body[field]);
       setClauses.push(`${field} = $${params.length}`);
     }
+
+    // Auto-set status_updated_at when status changes and field is blank/not provided
+    if (updates.includes('status') && !updates.includes('status_updated_at')) {
+      params.push(new Date().toISOString());
+      setClauses.push(`status_updated_at = $${params.length}`);
+    }
+
+    // Perform keyword lookup if relevant fields are being updated
+    let resolvedKeywordId = existing.keyword_id;
+    const needsKeywordLookup = updates.some(field => 
+      ['campaign_id', 'raw_keyword_text', 'created_at', 'conversion_date'].includes(field)
+    );
+    
+    if (needsKeywordLookup) {
+      const campaign_id = req.body.campaign_id !== undefined ? req.body.campaign_id : existing.campaign_id;
+      const raw_keyword_text = req.body.raw_keyword_text !== undefined ? req.body.raw_keyword_text : existing.raw_keyword_text;
+      const created_at = req.body.created_at !== undefined ? req.body.created_at : existing.created_at;
+      const conversion_date = req.body.conversion_date !== undefined ? req.body.conversion_date : existing.conversion_date;
+      
+      if (raw_keyword_text && campaign_id) {
+        // Use conversion_date if available, otherwise fall back to created_at
+        const lookupDate = conversion_date || created_at;
+        if (lookupDate) {
+          const leadDate = new Date(lookupDate).toISOString().split('T')[0];
+          console.log('Looking up keyword on update:', { leadDate, campaign_id, raw_keyword_text, usingDate: conversion_date ? 'conversion_date' : 'created_at' });
+          
+          const keywordResult = await client.query(
+            `SELECT ds.keyword_id, k.text 
+             FROM daily_stats ds
+             JOIN keywords k ON ds.keyword_id = k.id
+             JOIN ad_groups ag ON k.ad_group_id = ag.id
+             WHERE ds.date = $1 
+             AND ag.campaign_id = $2
+             AND LOWER(k.text) = LOWER($3)
+             LIMIT 1`,
+            [leadDate, campaign_id, raw_keyword_text]
+          );
+          console.log('Keyword lookup result on update:', keywordResult.rows);
+          
+          if (keywordResult.rows.length > 0) {
+            resolvedKeywordId = keywordResult.rows[0].keyword_id;
+            // Update the keyword_id and match_status in the set clauses
+            params.push(resolvedKeywordId);
+            setClauses.push(`keyword_id = $${params.length}`);
+            setClauses.push(`match_status = 'matched'`);
+          } else {
+            // If no match found, update match_status accordingly
+            setClauses.push(`match_status = CASE WHEN raw_keyword_text IS NOT NULL OR gclid IS NOT NULL THEN 'no_match' ELSE 'no_tracking_data' END`);
+          }
+        }
+      }
+    }
+    
     params.push(id);
 
     const { rows: updatedRows } = await client.query(
@@ -151,15 +233,15 @@ router.delete("/:id", async (req, res) => {
 // POST /api/leads -- create a lead manually
 router.post("/", async (req, res) => {
   const {
-    name, first_name, last_name, email, phone,
+    name, first_name, last_name, email,
     full_address, zip_code, lead_source, status,
-    value, revenue, notes, gclid, utm_source, utm_medium,
+    value, revenue, gclid, utm_source, utm_medium,
     utm_campaign, utm_term, landing_page, raw_keyword_text,
-    web_source_campaign, campaign_id, ad_group_id, keyword_id, created_at
+    web_source_campaign, campaign_id, ad_group_id, keyword_id, created_at, conversion_date
   } = req.body;
 
-  if (!email && !phone) {
-    return res.status(400).json({ error: "Email or phone required" });
+  if (!email) {
+    return res.status(400).json({ error: "Email required" });
   }
 
   const client = await pool.connect();
@@ -168,18 +250,46 @@ router.post("/", async (req, res) => {
 
     const fullName = [first_name, last_name].filter(Boolean).join(' ') || name || null;
 
+    // Look up keyword_id if raw_keyword_text and campaign_id are provided
+    let resolvedKeywordId = keyword_id;
+    if (!resolvedKeywordId && raw_keyword_text && campaign_id) {
+      // Use conversion_date if available, otherwise fall back to created_at
+      const lookupDate = conversion_date || created_at;
+      if (lookupDate) {
+        const leadDate = new Date(lookupDate).toISOString().split('T')[0];
+        console.log('Looking up keyword:', { leadDate, campaign_id, raw_keyword_text, usingDate: conversion_date ? 'conversion_date' : 'created_at' });
+        
+        const keywordResult = await client.query(
+          `SELECT ds.keyword_id, k.text 
+           FROM daily_stats ds
+           JOIN keywords k ON ds.keyword_id = k.id
+           JOIN ad_groups ag ON k.ad_group_id = ag.id
+           WHERE ds.date = $1 
+           AND ag.campaign_id = $2
+           AND LOWER(k.text) = LOWER($3)
+           LIMIT 1`,
+          [leadDate, campaign_id, raw_keyword_text]
+        );
+        console.log('Keyword lookup result:', keywordResult.rows);
+        
+        if (keywordResult.rows.length > 0) {
+          resolvedKeywordId = keywordResult.rows[0].keyword_id;
+        }
+      }
+    }
+
     const { rows } = await client.query(
-      `INSERT INTO leads (name, first_name, last_name, email, phone, full_address, zip_code,
+      `INSERT INTO leads (name, first_name, last_name, email, full_address, zip_code,
          gclid, utm_source, utm_medium, utm_campaign, utm_term, landing_page, raw_keyword_text,
-         web_source_campaign, campaign_id, ad_group_id, keyword_id, match_status, status, value, revenue, notes, source, created_at)
+         web_source_campaign, campaign_id, ad_group_id, keyword_id, match_status, status, value, revenue, source, created_at, conversion_date)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
        RETURNING *`,
       [
-        fullName, first_name, last_name, email, phone, full_address, zip_code,
+        fullName, first_name, last_name, email, full_address, zip_code,
         gclid, utm_source, utm_medium, utm_campaign, utm_term, landing_page, raw_keyword_text,
-        web_source_campaign, campaign_id, ad_group_id, keyword_id,
-        (keyword_id ? 'matched' : (gclid || raw_keyword_text ? 'no_match' : 'no_tracking_data')),
-        status || 'new', value, revenue, notes, 'manual', created_at || new Date().toISOString()
+        web_source_campaign, campaign_id, ad_group_id, resolvedKeywordId,
+        (resolvedKeywordId ? 'matched' : (gclid || raw_keyword_text ? 'no_match' : 'no_tracking_data')),
+        status || 'new', value, revenue, 'manual', created_at || new Date().toISOString(), conversion_date
       ]
     );
 
