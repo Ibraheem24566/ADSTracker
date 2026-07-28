@@ -244,19 +244,19 @@ router.post("/", async (req, res) => {
     return res.status(400).json({ error: "Email required" });
   }
 
+  // Ensure status_updated_at column exists (outside transaction)
+  await pool.query(`
+    ALTER TABLE leads 
+    ADD COLUMN IF NOT EXISTS status_updated_at TIMESTAMP
+  `).catch(err => {
+    if (err.code !== '42701') {
+      console.error('Failed to add status_updated_at column:', err);
+    }
+  });
+
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-
-    // Ensure status_updated_at column exists
-    await client.query(`
-      ALTER TABLE leads 
-      ADD COLUMN IF NOT EXISTS status_updated_at TIMESTAMP
-    `).catch(err => {
-      if (err.code !== '42701') {
-        console.error('Failed to add status_updated_at column:', err);
-      }
-    });
 
     const fullName = [first_name, last_name].filter(Boolean).join(' ') || name || null;
 
@@ -301,7 +301,7 @@ router.post("/", async (req, res) => {
       insertQuery = `INSERT INTO leads (name, first_name, last_name, email, full_address, zip_code,
          gclid, utm_source, utm_medium, utm_campaign, utm_term, landing_page, raw_keyword_text,
          web_source_campaign, campaign_id, ad_group_id, keyword_id, match_status, status, value, revenue, source, created_at, conversion_date, status_updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
        RETURNING *`;
       insertValues = [
         fullName, first_name, last_name, email, full_address, zip_code,
@@ -314,7 +314,7 @@ router.post("/", async (req, res) => {
       insertQuery = `INSERT INTO leads (name, first_name, last_name, email, full_address, zip_code,
          gclid, utm_source, utm_medium, utm_campaign, utm_term, landing_page, raw_keyword_text,
          web_source_campaign, campaign_id, ad_group_id, keyword_id, match_status, status, value, revenue, source, created_at, conversion_date)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
        RETURNING *`;
       insertValues = [
         fullName, first_name, last_name, email, full_address, zip_code,
