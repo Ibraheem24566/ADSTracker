@@ -99,7 +99,16 @@ router.patch("/:id", async (req, res) => {
   const { id } = req.params;
   const updates = Object.keys(req.body).filter((key) => EDITABLE_FIELDS.includes(key));
 
-  if (updates.length === 0) {
+  // Filter out empty strings for numeric fields to avoid type errors
+  const numericFields = ['value', 'revenue'];
+  const filteredUpdates = updates.filter(key => {
+    if (numericFields.includes(key) && req.body[key] === '') {
+      return false; // Skip empty strings for numeric fields
+    }
+    return true;
+  });
+
+  if (filteredUpdates.length === 0) {
     return res.status(400).json({ error: `No editable fields provided. Allowed: ${EDITABLE_FIELDS.join(", ")}` });
   }
 
@@ -116,13 +125,13 @@ router.patch("/:id", async (req, res) => {
 
     const setClauses = [];
     const params = [];
-    for (const field of updates) {
+    for (const field of filteredUpdates) {
       params.push(req.body[field]);
       setClauses.push(`${field} = $${params.length}`);
     }
 
     // Auto-set status_updated_at when status changes and field is blank/not provided
-    if (updates.includes('status') && !updates.includes('status_updated_at')) {
+    if (filteredUpdates.includes('status') && !filteredUpdates.includes('status_updated_at')) {
       params.push(new Date().toISOString());
       setClauses.push(`status_updated_at = $${params.length}`);
     }
@@ -196,7 +205,7 @@ router.patch("/:id", async (req, res) => {
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("Failed to update lead:", err);
-    res.status(500).json({ error: "Failed to update lead" });
+    res.status(500).json({ error: "Failed to update lead: " + err.message });
   } finally {
     client.release();
   }
