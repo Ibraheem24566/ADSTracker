@@ -30,7 +30,8 @@ async function getPeriodTotals(from, to) {
     `SELECT
        COUNT(*) AS total_leads,
        COUNT(*) FILTER (WHERE sold = true) AS sold_leads,
-       COUNT(*) FILTER (WHERE sold = false) AS rejected_leads
+       COUNT(*) FILTER (WHERE sold = false) AS rejected_leads,
+       COALESCE(SUM(revenue), 0) AS total_revenue
      FROM leads
      WHERE created_at::date BETWEEN $1 AND $2`,
     [from, to]
@@ -40,6 +41,8 @@ async function getPeriodTotals(from, to) {
   const leads = leadRows[0];
   const cost = Number(stats.cost_micros) / 1_000_000;
   const totalLeads = Number(leads.total_leads);
+  const totalRevenue = Number(leads.total_revenue);
+  const profit = totalRevenue - cost;
 
   return {
     impressions: Number(stats.impressions),
@@ -50,6 +53,11 @@ async function getPeriodTotals(from, to) {
     sold_leads: Number(leads.sold_leads),
     rejected_leads: Number(leads.rejected_leads),
     cost_per_lead: totalLeads > 0 ? cost / totalLeads : null,
+    revenue: totalRevenue,
+    profit: profit,
+    roi: cost > 0 ? ((profit / cost) * 100) : 0,
+    margin: totalRevenue > 0 ? ((profit / totalRevenue) * 100) : 0,
+    booking_rate: totalLeads > 0 ? ((Number(leads.sold_leads) / totalLeads) * 100) : 0,
   };
 }
 
@@ -59,15 +67,21 @@ async function getTrend(from, to) {
        ds.date,
        SUM(ds.cost_micros) AS cost_micros,
        SUM(ds.clicks) AS clicks,
-       COALESCE(lc.lead_count, 0) AS lead_count
+       COALESCE(lc.lead_count, 0) AS lead_count,
+       COALESCE(lr.revenue_sum, 0) AS revenue
      FROM daily_stats ds
      LEFT JOIN (
        SELECT created_at::date AS d, COUNT(*) AS lead_count
        FROM leads WHERE created_at::date BETWEEN $1 AND $2
        GROUP BY created_at::date
      ) lc ON lc.d = ds.date
+     LEFT JOIN (
+       SELECT created_at::date AS d, COALESCE(SUM(revenue), 0) AS revenue_sum
+       FROM leads WHERE created_at::date BETWEEN $1 AND $2
+       GROUP BY created_at::date
+     ) lr ON lr.d = ds.date
      WHERE ds.date BETWEEN $1 AND $2
-     GROUP BY ds.date, lc.lead_count
+     GROUP BY ds.date, lc.lead_count, lr.revenue_sum
      ORDER BY ds.date ASC`,
     [from, to]
   );
@@ -77,6 +91,7 @@ async function getTrend(from, to) {
     cost: Number(r.cost_micros) / 1_000_000,
     clicks: Number(r.clicks),
     leads: Number(r.lead_count),
+    revenue: Number(r.revenue),
   }));
 }
 

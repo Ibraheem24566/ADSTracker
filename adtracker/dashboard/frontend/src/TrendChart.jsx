@@ -29,9 +29,9 @@ export default function TrendChart({ data, series }) {
 
   if (!data || data.length === 0) return null;
 
-  const width = 700;
-  const height = 240;
-  const padding = 32;
+  const width = 800;
+  const height = 300;
+  const padding = 40;
   const innerW = width - padding * 2;
 
   const ranges = series.map((s) => {
@@ -62,7 +62,7 @@ export default function TrendChart({ data, series }) {
   const tooltipY = hoverIdx !== null ? (Math.min(...seriesPoints.map((p) => p[hoverIdx][1])) / height) * 100 : 0;
 
   return (
-    <div style={{ position: "relative" }}>
+    <div style={{ position: "relative", background: "var(--surface)", borderRadius: "var(--radius)", padding: "16px", border: "1px solid var(--border)" }}>
       <svg
         ref={svgRef}
         viewBox={`0 0 ${width} ${height}`}
@@ -73,17 +73,25 @@ export default function TrendChart({ data, series }) {
         <defs>
           {series.map((s) => (
             <linearGradient id={`trend-grad-${s.key}`} key={s.key} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={s.color} stopOpacity="0.22" />
+              <stop offset="0%" stopColor={s.color} stopOpacity="0.3" />
               <stop offset="100%" stopColor={s.color} stopOpacity="0" />
             </linearGradient>
           ))}
         </defs>
 
-        {/* faint horizontal gridlines */}
-        {[0.25, 0.5, 0.75].map((f) => (
-          <line key={f} x1={padding} y1={padding + f * (height - padding * 2)} x2={width - padding} y2={padding + f * (height - padding * 2)} stroke="var(--border)" strokeDasharray="2,4" />
+        {/* horizontal gridlines */}
+        {[0, 0.25, 0.5, 0.75, 1].map((f) => (
+          <line 
+            key={f} 
+            x1={padding} 
+            y1={padding + f * (height - padding * 2)} 
+            x2={width - padding} 
+            y2={padding + f * (height - padding * 2)} 
+            stroke="var(--border)" 
+            strokeWidth="1"
+            strokeDasharray={f === 0 || f === 1 ? "0" : "4,4"} 
+          />
         ))}
-        <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="var(--border)" />
 
         {series.map((s, si) => {
           const pts = seriesPoints[si];
@@ -91,8 +99,8 @@ export default function TrendChart({ data, series }) {
           const areaPath = `${path} L${pts[pts.length - 1][0].toFixed(1)},${height - padding} L${pts[0][0].toFixed(1)},${height - padding} Z`;
           return (
             <g key={s.key}>
-              {si === 0 && <path d={areaPath} fill={`url(#trend-grad-${s.key})`} stroke="none" />}
-              <path d={path} fill="none" stroke={s.color} strokeWidth="2" strokeLinecap="round" />
+              <path d={areaPath} fill={`url(#trend-grad-${s.key})`} stroke="none" />
+              <path d={path} fill="none" stroke={s.color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
             </g>
           );
         })}
@@ -100,36 +108,79 @@ export default function TrendChart({ data, series }) {
         {/* hover indicator */}
         {hoverIdx !== null && (
           <>
-            <line x1={xAt(hoverIdx)} y1={padding} x2={xAt(hoverIdx)} y2={height - padding} stroke="var(--border-strong)" strokeDasharray="3,3" />
+            <line 
+              x1={xAt(hoverIdx)} 
+              y1={padding} 
+              x2={xAt(hoverIdx)} 
+              y2={height - padding} 
+              stroke="var(--border-strong)" 
+              strokeWidth="1.5"
+              strokeDasharray="4,4" 
+            />
             {series.map((s, si) => (
-              <circle key={s.key} cx={seriesPoints[si][hoverIdx][0]} cy={seriesPoints[si][hoverIdx][1]} r="3.5" fill={s.color} stroke="var(--surface)" strokeWidth="1.5" />
+              <circle 
+                key={s.key} 
+                cx={seriesPoints[si][hoverIdx][0]} 
+                cy={seriesPoints[si][hoverIdx][1]} 
+                r="5" 
+                fill={s.color} 
+                stroke="var(--surface)" 
+                strokeWidth="2.5" 
+              />
             ))}
           </>
         )}
 
         {/* x-axis labels: first, middle, last date */}
         {[0, Math.floor(data.length / 2), data.length - 1].map((i) => (
-          <text key={i} x={xAt(i)} y={height - 8} fontSize="10" fill="var(--text-muted)" textAnchor="middle">
+          <text 
+            key={i} 
+            x={xAt(i)} 
+            y={height - 12} 
+            fontSize="11" 
+            fill="var(--text-muted)" 
+            textAnchor="middle"
+            fontWeight="500"
+          >
             {data[i]?.date?.slice(5)}
           </text>
         ))}
 
         {/* legend */}
-        {series.map((s, i) => (
-          <g key={s.key} transform={`translate(${padding + i * 100}, 12)`}>
-            <rect width="10" height="10" fill={s.color} rx="2" />
-            <text x="14" y="9" fontSize="11" fill="var(--text-muted)">{s.label}</text>
-          </g>
-        ))}
+        <g transform={`translate(${padding}, 16)`}>
+          {series.map((s, i) => (
+            <g key={s.key} transform={`translate(${i * 120}, 0)`}>
+              <rect width="12" height="12" fill={s.color} rx="3" />
+              <text x="18" y="10" fontSize="12" fill="var(--text)" fontWeight="600">{s.label}</text>
+            </g>
+          ))}
+        </g>
       </svg>
 
       {hovered && (
-        <div className="chart-tooltip" style={{ left: `${tooltipX}%`, top: `${tooltipY}%` }}>
-          <div className="t-date">{hovered.date}</div>
+        <div 
+          className="chart-tooltip" 
+          style={{ 
+            left: `${tooltipX}%`, 
+            top: `${tooltipY}%`,
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius)",
+            padding: "12px",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+            minWidth: "150px"
+          }}
+        >
+          <div className="t-date" style={{ fontSize: "12px", fontWeight: "600", marginBottom: "8px", color: "var(--text-muted)" }}>
+            {hovered.date}
+          </div>
           {series.map((s) => (
-            <div className="t-row" key={s.key}>
-              <span className="t-dot" style={{ background: s.color }} />
-              {s.label}: {typeof hovered[s.key] === "number" ? hovered[s.key].toLocaleString(undefined, { maximumFractionDigits: 2 }) : hovered[s.key]}
+            <div className="t-row" key={s.key} style={{ display: "flex", alignItems: "center", marginBottom: "4px" }}>
+              <span className="t-dot" style={{ background: s.color, width: "8px", height: "8px", borderRadius: "50%", marginRight: "8px" }} />
+              <span style={{ fontSize: "13px", color: "var(--text-muted)", marginRight: "8px" }}>{s.label}:</span>
+              <span style={{ fontSize: "13px", fontWeight: "600", color: "var(--text)" }}>
+                {typeof hovered[s.key] === "number" ? hovered[s.key].toLocaleString(undefined, { maximumFractionDigits: 2 }) : hovered[s.key]}
+              </span>
             </div>
           ))}
         </div>

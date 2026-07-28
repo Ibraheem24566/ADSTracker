@@ -20,7 +20,6 @@ const SORTERS = {
   keyword: (l) => (l.keyword_text || l.raw_keyword_text || "").toLowerCase(),
   campaign: (l) => (l.campaign_name || "").toLowerCase(),
   status: (l) => l.status,
-  value: (l) => Number(l.value) || -Infinity,
   created_at: (l) => new Date(l.created_at).getTime(),
 };
 
@@ -46,7 +45,11 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
   const [filters, setFilters] = useState({ status: "", campaign_id: "", search: "" });
   const [sort, setSort] = useState({ key: "created_at", dir: "desc" });
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [leadToDelete, setLeadToDelete] = useState(null);
   const [newLead, setNewLead] = useState({});
+  const [editingLead, setEditingLead] = useState({});
 
   // combine manual filters with a keyword drill-down passed in from another tab
   const effectiveFilters = useMemo(
@@ -58,7 +61,21 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
     setLoading(true);
     try {
       const [leadRows, campaignRows] = await Promise.all([getLeads(effectiveFilters), getCampaigns()]);
-      setLeads(leadRows);
+      // Convert revenue to number for all leads
+      const leadsWithNumbers = leadRows.map(lead => {
+        let revenueNum = null;
+        if (lead.revenue !== null && lead.revenue !== undefined && lead.revenue !== '') {
+          const parsed = Number(lead.revenue);
+          if (!isNaN(parsed)) {
+            revenueNum = parsed;
+          }
+        }
+        return {
+          ...lead,
+          revenue: revenueNum
+        };
+      });
+      setLeads(leadsWithNumbers);
       setCampaigns(campaignRows);
     } finally {
       setLoading(false);
@@ -90,18 +107,89 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
         return;
       }
     }
-    await updateLead(id, { [field]: value });
+    if (field === "revenue") {
+      // Convert empty string to null, otherwise convert to number
+      const numValue = Number(value);
+      if (value === "" || isNaN(numValue)) {
+        value = null;
+      } else {
+        value = numValue;
+      }
+      if (!confirm(`Are you sure you want to set revenue to "${value}"?`)) {
+        load(); // Revert if cancelled
+        return;
+      }
+    }
+    try {
+      const updated = await updateLead(id, { [field]: value });
+      // Convert revenue to number if present in response
+      if (updated.revenue !== undefined && updated.revenue !== null && updated.revenue !== '') {
+        updated.revenue = Number(updated.revenue);
+      } else {
+        updated.revenue = null;
+      }
+      // Update local state with the returned data instead of reloading
+      setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, ...updated } : l)));
+    } catch (error) {
+      alert("Failed to update lead: " + error.message);
+      load(); // Revert on error
+    }
   }
 
   async function handleDelete(id) {
-    if (!confirm("Are you sure you want to delete this lead? This action cannot be undone.")) {
-      return;
-    }
+    setLeadToDelete(id);
+    setShowDeleteConfirm(true);
+  }
+
+  async function confirmDelete() {
+    if (!leadToDelete) return;
     try {
-      await deleteLead(id);
+      await deleteLead(leadToDelete);
+      setShowDeleteConfirm(false);
+      setLeadToDelete(null);
       load();
     } catch (error) {
       alert("Failed to delete lead: " + error.message);
+    }
+  }
+
+  function openEditModal(lead) {
+    setEditingLead({
+      id: lead.id,
+      first_name: lead.first_name || "",
+      last_name: lead.last_name || "",
+      email: lead.email || "",
+      phone: lead.phone || "",
+      status: lead.status || "new",
+      revenue: lead.revenue || "",
+      notes: lead.notes || "",
+      campaign_id: lead.campaign_id || "",
+      raw_keyword_text: lead.raw_keyword_text || "",
+      gclid: lead.gclid || "",
+      created_at: lead.created_at ? lead.created_at.split('T')[0] : new Date().toISOString().split('T')[0]
+    });
+    setShowEditModal(true);
+  }
+
+  async function handleUpdate(e) {
+    e.preventDefault();
+    if (!editingLead.id) return;
+    try {
+      const updateData = {
+        status: editingLead.status,
+        revenue: editingLead.revenue,
+        notes: editingLead.notes,
+        campaign_id: editingLead.campaign_id || null,
+        raw_keyword_text: editingLead.raw_keyword_text || null,
+        gclid: editingLead.gclid || null,
+        created_at: editingLead.created_at
+      };
+      await updateLead(editingLead.id, updateData);
+      setShowEditModal(false);
+      setEditingLead({});
+      load();
+    } catch (error) {
+      alert("Failed to update lead: " + error.message);
     }
   }
 
@@ -112,7 +200,13 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
       return;
     }
     try {
-      await createLead(newLead);
+      const createData = {
+        ...newLead,
+        campaign_id: newLead.campaign_id || null,
+        raw_keyword_text: newLead.raw_keyword_text || null,
+        gclid: newLead.gclid || null
+      };
+      await createLead(createData);
       setShowCreateModal(false);
       setNewLead({});
       load();
@@ -138,7 +232,7 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
           {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         <span className="spacer" />
-        <button className="btn-primary" onClick={() => setShowCreateModal(true)}>+ Add Lead</button>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowCreateModal(true)}>+ Add Lead</button>
         {keywordFilter?.id && (
           <span className="badge matched" style={{ cursor: "pointer" }} onClick={onClearKeywordFilter} title="Click to clear">
             Keyword: {keywordFilter.text} ✕
@@ -161,11 +255,11 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                 <SortHeader id="campaign" label="Campaign" sort={sort} setSort={setSort} />
                 <th>Attribution</th>
                 <SortHeader id="status" label="Status" sort={sort} setSort={setSort} />
-                <SortHeader id="value" label="Value" sort={sort} setSort={setSort} className="num" />
                 <th>Notes</th>
                 <th>Revenue</th>
                 <th>Actions</th>
                 <SortHeader id="created_at" label="Received" sort={sort} setSort={setSort} />
+                <th>Click ID</th>
               </tr>
             </thead>
             <tbody>
@@ -195,16 +289,6 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                       {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </td>
-                  <td className="num">
-                    <input
-                      className="inline-edit value"
-                      type="number"
-                      value={lead.value ?? ""}
-                      placeholder="—"
-                      onChange={(e) => setLocalField(lead.id, "value", e.target.value)}
-                      onBlur={(e) => commitField(lead.id, "value", e.target.value)}
-                    />
-                  </td>
                   <td>
                     <input
                       className="inline-edit"
@@ -214,26 +298,35 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                       onBlur={(e) => commitField(lead.id, "notes", e.target.value)}
                     />
                   </td>
-                  <td className="num">
+                  <td className="num" style={{ minWidth: 100 }}>
                     <input
                       className="inline-edit value"
                       type="number"
-                      value={lead.revenue ?? ""}
+                      step="0.01"
+                      value={lead.revenue === null || lead.revenue === undefined ? "" : lead.revenue}
                       placeholder="0"
                       onChange={(e) => setLocalField(lead.id, "revenue", e.target.value)}
                       onBlur={(e) => commitField(lead.id, "revenue", e.target.value)}
+                      style={{ width: "100%", minWidth: 80 }}
                     />
                   </td>
                   <td>
                     <button 
-                      className="btn-danger" 
-                      style={{ padding: "4px 8px", fontSize: 12 }}
+                      className="btn btn-sm" 
+                      onClick={() => openEditModal(lead)}
+                    >
+                      Edit
+                    </button>
+                    <button 
+                      className="btn btn-danger btn-sm" 
+                      style={{ marginLeft: 6 }}
                       onClick={() => handleDelete(lead.id)}
                     >
                       Delete
                     </button>
                   </td>
                   <td>{new Date(lead.created_at).toLocaleDateString()}</td>
+                  <td style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-mono)", maxWidth: 250, overflow: "hidden", textOverflow: "ellipsis" }} title={lead.gclid || ""}>{lead.gclid || "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -266,6 +359,7 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                 <label>Email *</label>
                 <input
                   type="email"
+                  required
                   value={newLead.email || ""}
                   onChange={(e) => setNewLead({ ...newLead, email: e.target.value })}
                 />
@@ -279,6 +373,25 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                 />
               </div>
               <div className="form-group">
+                <label>Campaign</label>
+                <select
+                  value={newLead.campaign_id || ""}
+                  onChange={(e) => setNewLead({ ...newLead, campaign_id: e.target.value })}
+                >
+                  <option value="">Select campaign...</option>
+                  {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Keyword</label>
+                <input
+                  type="text"
+                  value={newLead.raw_keyword_text || ""}
+                  onChange={(e) => setNewLead({ ...newLead, raw_keyword_text: e.target.value })}
+                  placeholder="Search keyword"
+                />
+              </div>
+              <div className="form-group">
                 <label>Status</label>
                 <select
                   value={newLead.status || "new"}
@@ -288,11 +401,13 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                 </select>
               </div>
               <div className="form-group">
-                <label>Value</label>
+                <label>Revenue</label>
                 <input
                   type="number"
-                  value={newLead.value || ""}
-                  onChange={(e) => setNewLead({ ...newLead, value: e.target.value })}
+                  step="0.01"
+                  value={newLead.revenue || ""}
+                  onChange={(e) => setNewLead({ ...newLead, revenue: e.target.value })}
+                  placeholder="0.00"
                 />
               </div>
               <div className="form-group">
@@ -303,11 +418,150 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                   onChange={(e) => setNewLead({ ...newLead, notes: e.target.value })}
                 />
               </div>
+              <div className="form-group">
+                <label>Click ID (GCLID)</label>
+                <input
+                  type="text"
+                  value={newLead.gclid || ""}
+                  onChange={(e) => setNewLead({ ...newLead, gclid: e.target.value })}
+                  placeholder="Google Click Identifier"
+                />
+              </div>
+              <div className="form-group">
+                <label>Created Date</label>
+                <input
+                  type="date"
+                  value={newLead.created_at || new Date().toISOString().split('T')[0]}
+                  onChange={(e) => setNewLead({ ...newLead, created_at: e.target.value })}
+                />
+              </div>
               <div className="modal-actions">
-                <button type="button" onClick={() => setShowCreateModal(false)}>Cancel</button>
-                <button type="submit" className="btn-primary">Create Lead</button>
+                <button type="button" className="btn" onClick={() => setShowCreateModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary">Create Lead</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showEditModal && (
+        <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Edit Lead</h2>
+            <form onSubmit={handleUpdate}>
+              <div className="form-group">
+                <label>First Name</label>
+                <input
+                  type="text"
+                  value={editingLead.first_name || ""}
+                  onChange={(e) => setEditingLead({ ...editingLead, first_name: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label>Last Name</label>
+                <input
+                  type="text"
+                  value={editingLead.last_name || ""}
+                  onChange={(e) => setEditingLead({ ...editingLead, last_name: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label>Email</label>
+                <input
+                  type="email"
+                  value={editingLead.email || ""}
+                  onChange={(e) => setEditingLead({ ...editingLead, email: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label>Phone</label>
+                <input
+                  type="tel"
+                  value={editingLead.phone || ""}
+                  onChange={(e) => setEditingLead({ ...editingLead, phone: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label>Campaign</label>
+                <select
+                  value={editingLead.campaign_id || ""}
+                  onChange={(e) => setEditingLead({ ...editingLead, campaign_id: e.target.value })}
+                >
+                  <option value="">Select campaign...</option>
+                  {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Keyword</label>
+                <input
+                  type="text"
+                  value={editingLead.raw_keyword_text || ""}
+                  onChange={(e) => setEditingLead({ ...editingLead, raw_keyword_text: e.target.value })}
+                  placeholder="Search keyword"
+                />
+              </div>
+              <div className="form-group">
+                <label>Status</label>
+                <select
+                  value={editingLead.status || "new"}
+                  onChange={(e) => setEditingLead({ ...editingLead, status: e.target.value })}
+                >
+                  {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Revenue</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={editingLead.revenue || ""}
+                  onChange={(e) => setEditingLead({ ...editingLead, revenue: e.target.value })}
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="form-group">
+                <label>Notes</label>
+                <input
+                  type="text"
+                  value={editingLead.notes || ""}
+                  onChange={(e) => setEditingLead({ ...editingLead, notes: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label>Click ID (GCLID)</label>
+                <input
+                  type="text"
+                  value={editingLead.gclid || ""}
+                  onChange={(e) => setEditingLead({ ...editingLead, gclid: e.target.value })}
+                  placeholder="Google Click Identifier"
+                />
+              </div>
+              <div className="form-group">
+                <label>Created Date</label>
+                <input
+                  type="date"
+                  value={editingLead.created_at || new Date().toISOString().split('T')[0]}
+                  onChange={(e) => setEditingLead({ ...editingLead, created_at: e.target.value })}
+                />
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="btn" onClick={() => setShowEditModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showDeleteConfirm && (
+        <div className="modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 400 }}>
+            <h2>Confirm Delete</h2>
+            <p>Are you sure you want to delete this lead? This action cannot be undone.</p>
+            <div className="modal-actions">
+              <button type="button" className="btn" onClick={() => setShowDeleteConfirm(false)}>Cancel</button>
+              <button type="button" className="btn btn-danger" onClick={confirmDelete}>Delete</button>
+            </div>
           </div>
         </div>
       )}

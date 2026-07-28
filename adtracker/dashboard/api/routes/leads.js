@@ -3,7 +3,7 @@ const pool = require("../db");
 
 const router = express.Router();
 
-const EDITABLE_FIELDS = ["status", "value", "notes", "revenue"];
+const EDITABLE_FIELDS = ["status", "value", "notes", "revenue", "campaign_id", "raw_keyword_text", "gclid", "created_at"];
 
 // GET /api/leads?status=&campaign_id=&from=&to=&search=
 router.get("/", async (req, res) => {
@@ -25,11 +25,11 @@ router.get("/", async (req, res) => {
   }
   if (from) {
     params.push(from);
-    conditions.push(`l.created_at >= $${params.length}`);
+    conditions.push(`DATE(l.created_at) >= $${params.length}`);
   }
   if (to) {
     params.push(to);
-    conditions.push(`l.created_at <= $${params.length}`);
+    conditions.push(`DATE(l.created_at) <= $${params.length}`);
   }
   if (search) {
     params.push(`%${search}%`);
@@ -42,7 +42,7 @@ router.get("/", async (req, res) => {
     const { rows } = await pool.query(
       `SELECT
          l.id, l.name, l.email, l.phone, l.gclid, l.raw_keyword_text,
-         l.match_status, l.status, l.value, l.notes, l.source,
+         l.match_status, l.status, l.value, l.notes, l.revenue, l.source,
          l.sold, l.rejection_reason,
          l.created_at, l.updated_at,
          c.name AS campaign_name, ag.name AS ad_group_name, k.text AS keyword_text
@@ -153,9 +153,9 @@ router.post("/", async (req, res) => {
   const {
     name, first_name, last_name, email, phone,
     full_address, zip_code, lead_source, status,
-    value, notes, gclid, utm_source, utm_medium,
+    value, revenue, notes, gclid, utm_source, utm_medium,
     utm_campaign, utm_term, landing_page, raw_keyword_text,
-    web_source_campaign, campaign_id, ad_group_id, keyword_id
+    web_source_campaign, campaign_id, ad_group_id, keyword_id, created_at
   } = req.body;
 
   if (!email && !phone) {
@@ -171,15 +171,15 @@ router.post("/", async (req, res) => {
     const { rows } = await client.query(
       `INSERT INTO leads (name, first_name, last_name, email, phone, full_address, zip_code,
          gclid, utm_source, utm_medium, utm_campaign, utm_term, landing_page, raw_keyword_text,
-         web_source_campaign, campaign_id, ad_group_id, keyword_id, match_status, status, value, notes, source)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+         web_source_campaign, campaign_id, ad_group_id, keyword_id, match_status, status, value, revenue, notes, source, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
        RETURNING *`,
       [
         fullName, first_name, last_name, email, phone, full_address, zip_code,
         gclid, utm_source, utm_medium, utm_campaign, utm_term, landing_page, raw_keyword_text,
         web_source_campaign, campaign_id, ad_group_id, keyword_id,
         (keyword_id ? 'matched' : (gclid || raw_keyword_text ? 'no_match' : 'no_tracking_data')),
-        status || 'new', value, notes, 'manual'
+        status || 'new', value, revenue, notes, 'manual', created_at || new Date().toISOString()
       ]
     );
 

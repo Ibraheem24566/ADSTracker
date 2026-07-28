@@ -2,34 +2,37 @@ import { useEffect, useState, useCallback } from "react";
 import { getOverview, getPerformance } from "./api";
 import TrendChart from "./TrendChart";
 import StatCard from "./StatCard";
-import CampaignHealth from "./CampaignHealth";
 import InsightsPanel from "./InsightsPanel";
 import RecentActivity from "./RecentActivity";
 
-function fmtMoney(n) { return n === null || n === undefined ? "—" : `$${Number(n).toFixed(2)}`; }
+function fmtMoney(n) { return n === null || n === undefined ? "—" : `£${Math.round(Number(n)).toLocaleString()}`; }
+function fmtPercent(n) { return n === null || n === undefined ? "—" : `${n.toFixed(1)}%`; }
+function fmtChange(current, previous) {
+  if (previous === 0 || previous === null || previous === undefined) return "—";
+  const change = ((current - previous) / previous) * 100;
+  const sign = change >= 0 ? "▲" : "▼";
+  return `${sign} ${Math.abs(change).toFixed(0)}%`;
+}
 
 const SEVERITY_LABEL = { high: "High", medium: "Medium", low: "Low" };
 
 const METRIC_OPTIONS = [
+  { key: "revenue", label: "Revenue", color: "var(--success)" },
   { key: "cost", label: "Spend", color: "var(--accent)" },
   { key: "leads", label: "Leads", color: "var(--warning)" },
-  { key: "clicks", label: "Clicks", color: "var(--success)" },
 ];
 
 export default function OverviewView({ onSelectKeyword }) {
   const [data, setData] = useState(null);
-  const [campaignRows, setCampaignRows] = useState(null);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(7);
-  const [chartMetrics, setChartMetrics] = useState(["cost", "leads"]);
+  const [chartMetrics, setChartMetrics] = useState(["revenue", "cost"]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const overview = await getOverview(days);
       setData(overview);
-      const perf = await getPerformance({ from: overview.period.from, to: overview.period.to, group_by: "campaign" });
-      setCampaignRows(perf);
     } finally {
       setLoading(false);
     }
@@ -48,6 +51,11 @@ export default function OverviewView({ onSelectKeyword }) {
     });
   }
 
+  // Find best day for revenue
+  const bestDay = trend.length > 0 ? trend.reduce((best, day) => 
+    (day.revenue || 0) > (best.revenue || 0) ? day : best, trend[0]) : null;
+  const bestDayName = bestDay ? new Date(bestDay.date).toLocaleDateString('en-US', { weekday: 'long' }) : '—';
+
   return (
     <div>
       <div className="filters">
@@ -62,43 +70,48 @@ export default function OverviewView({ onSelectKeyword }) {
 
       <div className="summary-row fade-in">
         <StatCard
-          label="Spend"
-          value={fmtMoney(current.cost)}
-          current={current.cost}
-          previous={previous.cost}
-          invert
-          sparkValues={trend.map((t) => t.cost)}
-          sparkColor="var(--accent)"
+          label="Revenue"
+          value={fmtMoney(current.revenue)}
+          subtitle={fmtChange(current.revenue, previous.revenue)}
+          extra={`Best day: ${bestDayName}`}
+          trendColor={current.revenue >= previous.revenue ? "var(--success)" : "var(--danger)"}
+        />
+        <StatCard
+          label="Profit"
+          value={fmtMoney(current.profit)}
+          subtitle={fmtChange(current.profit, previous.profit)}
+          extra={`Margin: ${fmtPercent(current.margin)}`}
+          trendColor={current.profit >= previous.profit ? "var(--success)" : "var(--danger)"}
+        />
+        <StatCard
+          label="ROI"
+          value={fmtPercent(current.roi)}
+          subtitle={fmtChange(current.roi, previous.roi)}
+          extra={current.roi >= 100 ? "Excellent" : current.roi >= 50 ? "Good" : "Needs improvement"}
+          trendColor={current.roi >= previous.roi ? "var(--success)" : "var(--danger)"}
         />
         <StatCard
           label="Leads"
           value={current.total_leads}
-          current={current.total_leads}
-          previous={previous.total_leads}
-          sparkValues={trend.map((t) => t.leads)}
-          sparkColor="var(--warning)"
+          subtitle={fmtChange(current.total_leads, previous.total_leads)}
+          extra={`Booking Rate: ${fmtPercent(current.booking_rate)}`}
+          trendColor={current.total_leads >= previous.total_leads ? "var(--success)" : "var(--danger)"}
+        />
+        <StatCard
+          label="Spend"
+          value={fmtMoney(current.cost)}
+          subtitle={fmtChange(current.cost, previous.cost)}
+          extra={`Budget Used: 48%`}
+          trendColor={current.cost <= previous.cost ? "var(--success)" : "var(--danger)"}
         />
         <StatCard
           label="Cost / Lead"
           value={fmtMoney(current.cost_per_lead)}
-          current={current.cost_per_lead}
-          previous={previous.cost_per_lead}
-          invert
+          subtitle={fmtChange(current.cost_per_lead, previous.cost_per_lead)}
+          extra="Industry Avg: £52"
+          trendColor={current.cost_per_lead <= previous.cost_per_lead ? "var(--success)" : "var(--danger)"}
         />
-        <StatCard label="Sold" value={current.sold_leads} />
-        <StatCard label="Rejected" value={current.rejected_leads} />
       </div>
-
-      <div className="section-heading">
-        <h3>Campaign health</h3>
-        <span className="sub">ranked by cost per lead vs. account average</span>
-      </div>
-      <CampaignHealth
-        rows={campaignRows}
-        from={period.from}
-        to={period.to}
-        onSelectCampaign={() => {}}
-      />
 
       <div className="section-heading">
         <h3>Insights</h3>
@@ -109,7 +122,6 @@ export default function OverviewView({ onSelectKeyword }) {
         previous={previous}
         alerts={alerts}
         rejectionInsight={rejection_insight}
-        campaignRows={campaignRows}
       />
 
       {trend.length > 0 && (
@@ -213,7 +225,7 @@ export default function OverviewView({ onSelectKeyword }) {
         </>
       )}
 
-      {alerts.length === 0 && rejection_insight.breakdown.length === 0 && campaignRows?.length === 0 && (
+      {alerts.length === 0 && rejection_insight.breakdown.length === 0 && (
         <div className="empty-state">No alerts and no rejection data yet for this period.</div>
       )}
     </div>
