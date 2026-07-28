@@ -248,6 +248,16 @@ router.post("/", async (req, res) => {
   try {
     await client.query("BEGIN");
 
+    // Ensure status_updated_at column exists
+    await client.query(`
+      ALTER TABLE leads 
+      ADD COLUMN IF NOT EXISTS status_updated_at TIMESTAMP
+    `).catch(err => {
+      if (err.code !== '42701') {
+        console.error('Failed to add status_updated_at column:', err);
+      }
+    });
+
     const fullName = [first_name, last_name].filter(Boolean).join(' ') || name || null;
 
     // Look up keyword_id if raw_keyword_text and campaign_id are provided
@@ -278,20 +288,44 @@ router.post("/", async (req, res) => {
       }
     }
 
-    const { rows } = await client.query(
-      `INSERT INTO leads (name, first_name, last_name, email, full_address, zip_code,
+    // Check if status_updated_at column exists in the table
+    const columnCheck = await client.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'leads' AND column_name = 'status_updated_at'
+    `);
+    const hasStatusUpdatedAt = columnCheck.rows.length > 0;
+
+    let insertQuery, insertValues;
+    if (hasStatusUpdatedAt) {
+      insertQuery = `INSERT INTO leads (name, first_name, last_name, email, full_address, zip_code,
          gclid, utm_source, utm_medium, utm_campaign, utm_term, landing_page, raw_keyword_text,
          web_source_campaign, campaign_id, ad_group_id, keyword_id, match_status, status, value, revenue, source, created_at, conversion_date, status_updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
-       RETURNING *`,
-      [
+       RETURNING *`;
+      insertValues = [
         fullName, first_name, last_name, email, full_address, zip_code,
         gclid, utm_source, utm_medium, utm_campaign, utm_term, landing_page, raw_keyword_text,
         web_source_campaign, campaign_id, ad_group_id, resolvedKeywordId,
         (resolvedKeywordId ? 'matched' : (gclid || raw_keyword_text ? 'no_match' : 'no_tracking_data')),
         status || 'Contacted', value, revenue, 'manual', created_at || new Date().toISOString(), conversion_date, new Date().toISOString()
-      ]
-    );
+      ];
+    } else {
+      insertQuery = `INSERT INTO leads (name, first_name, last_name, email, full_address, zip_code,
+         gclid, utm_source, utm_medium, utm_campaign, utm_term, landing_page, raw_keyword_text,
+         web_source_campaign, campaign_id, ad_group_id, keyword_id, match_status, status, value, revenue, source, created_at, conversion_date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
+       RETURNING *`;
+      insertValues = [
+        fullName, first_name, last_name, email, full_address, zip_code,
+        gclid, utm_source, utm_medium, utm_campaign, utm_term, landing_page, raw_keyword_text,
+        web_source_campaign, campaign_id, ad_group_id, resolvedKeywordId,
+        (resolvedKeywordId ? 'matched' : (gclid || raw_keyword_text ? 'no_match' : 'no_tracking_data')),
+        status || 'Contacted', value, revenue, 'manual', created_at || new Date().toISOString(), conversion_date
+      ];
+    }
+
+    const { rows } = await client.query(insertQuery, insertValues);
 
     await client.query("COMMIT");
     res.status(201).json(rows[0]);
