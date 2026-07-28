@@ -281,15 +281,15 @@ router.post("/", async (req, res) => {
     const { rows } = await client.query(
       `INSERT INTO leads (name, first_name, last_name, email, full_address, zip_code,
          gclid, utm_source, utm_medium, utm_campaign, utm_term, landing_page, raw_keyword_text,
-         web_source_campaign, campaign_id, ad_group_id, keyword_id, match_status, status, value, revenue, source, created_at, conversion_date)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
+         web_source_campaign, campaign_id, ad_group_id, keyword_id, match_status, status, value, revenue, source, created_at, conversion_date, status_updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
        RETURNING *`,
       [
         fullName, first_name, last_name, email, full_address, zip_code,
         gclid, utm_source, utm_medium, utm_campaign, utm_term, landing_page, raw_keyword_text,
         web_source_campaign, campaign_id, ad_group_id, resolvedKeywordId,
         (resolvedKeywordId ? 'matched' : (gclid || raw_keyword_text ? 'no_match' : 'no_tracking_data')),
-        status || 'new', value, revenue, 'manual', created_at || new Date().toISOString(), conversion_date
+        status || 'Contacted', value, revenue, 'manual', created_at || new Date().toISOString(), conversion_date, new Date().toISOString()
       ]
     );
 
@@ -298,7 +298,7 @@ router.post("/", async (req, res) => {
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("Failed to create lead:", err);
-    res.status(500).json({ error: "Failed to create lead" });
+    res.status(500).json({ error: "Failed to create lead: " + err.message });
   } finally {
     client.release();
   }
