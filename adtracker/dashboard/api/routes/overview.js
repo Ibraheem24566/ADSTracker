@@ -76,7 +76,8 @@ async function getPeriodTotals(from, to, campaignId = null) {
     booking_rate: totalLeads > 0 ? ((Number(leads.sold_leads) / totalLeads) * 100) : 0,
     ctr: impressions > 0 ? (clicks / impressions * 100) : 0,
     avg_cpc: clicks > 0 ? (cost / clicks) : 0,
-    cost_per_conversion: conversions > 0 ? (cost / conversions) : 0,
+    // Cost per conversion based on actual lead count, not Google conversions
+    cost_per_conversion: totalLeads > 0 ? (cost / totalLeads) : 0,
   };
 
   console.log('Overview result:', result);
