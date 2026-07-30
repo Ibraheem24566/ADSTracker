@@ -860,6 +860,11 @@ router.post("/bulk-update", upload.single('file'), async (req, res) => {
           ? parseExcelDate(row['Converted Date']) 
           : null;
 
+        // Get status updated date from Converted Date column
+        const statusUpdatedDate = row['Converted Date'] 
+          ? parseExcelDate(row['Converted Date']) 
+          : new Date().toISOString();
+
         // Get disqualified reason from multiple possible columns
         const disqualifiedReason = row['Disqualified Reason*'] || 
                                   row['Closed Lost Reason'] || 
@@ -888,6 +893,7 @@ router.post("/bulk-update", upload.single('file'), async (req, res) => {
           name: `${lead.first_name} ${lead.last_name}`,
           status: dashboardStatus,
           conversionDate,
+          statusUpdatedDate,
           disqualifiedReason,
           changes
         });
@@ -908,11 +914,13 @@ router.post("/bulk-update", upload.single('file'), async (req, res) => {
       // Build bulk UPDATE query with CASE statements
       const statusCases = batch.map((u, idx) => `WHEN ${u.leadId}::bigint THEN $${idx + 2}::text`).join(' ');
       const conversionDateCases = batch.map((u, idx) => `WHEN ${u.leadId}::bigint THEN $${idx + 2 + batch.length}::date`).join(' ');
-      const disqualifiedReasonCases = batch.map((u, idx) => `WHEN ${u.leadId}::bigint THEN $${idx + 2 + batch.length * 2}::text`).join(' ');
+      const statusUpdatedDateCases = batch.map((u, idx) => `WHEN ${u.leadId}::bigint THEN $${idx + 2 + batch.length * 2}::timestamp`).join(' ');
+      const disqualifiedReasonCases = batch.map((u, idx) => `WHEN ${u.leadId}::bigint THEN $${idx + 2 + batch.length * 3}::text`).join(' ');
       
       const leadIds = batch.map(u => u.leadId);
       const statuses = batch.map(u => u.status);
       const conversionDates = batch.map(u => u.conversionDate);
+      const statusUpdatedDates = batch.map(u => u.statusUpdatedDate);
       const disqualifiedReasons = batch.map(u => u.disqualifiedReason);
 
       const bulkUpdateQuery = `
@@ -920,15 +928,15 @@ router.post("/bulk-update", upload.single('file'), async (req, res) => {
         SET 
           status = CASE id ${statusCases} ELSE status END,
           conversion_date = CASE id ${conversionDateCases} ELSE conversion_date END,
-          disqualified_reason = CASE id ${disqualifiedReasonCases} ELSE disqualified_reason END,
-          status_updated_at = $1
-        WHERE id = ANY($${batch.length * 3 + 2}::bigint[])
+          status_updated_at = CASE id ${statusUpdatedDateCases} ELSE status_updated_at END,
+          disqualified_reason = CASE id ${disqualifiedReasonCases} ELSE disqualified_reason END
+        WHERE id = ANY($${batch.length * 4 + 1}::bigint[])
       `;
 
       const values = [
-        new Date().toISOString(),
         ...statuses,
         ...conversionDates,
+        ...statusUpdatedDates,
         ...disqualifiedReasons,
         leadIds
       ];
