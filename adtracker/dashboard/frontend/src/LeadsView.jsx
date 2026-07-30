@@ -2,6 +2,11 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { getLeads, updateLead, deleteLead, createLead, getCampaigns } from "./api";
 import { ArrowUpIcon, ArrowDownIcon } from "./icons";
 
+function authHeader() {
+  const creds = localStorage.getItem("adtracker_creds");
+  return creds ? `Basic ${creds}` : null;
+}
+
 const STATUS_OPTIONS = ["Contacted", "Appointment Set", "Site Assessment", "Closed Won", "Closed Lost", "Disqualified"];
 
 function formatMatchLabel(status) {
@@ -278,11 +283,15 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
       formData.append('file', bulkUploadFile);
 
       const API_BASE = (import.meta.env.VITE_API_BASE || "http://localhost:3002").replace(/\/$/, '');
+      const headers = {};
+      const auth = authHeader();
+      if (auth) {
+        headers['Authorization'] = auth;
+      }
+
       const response = await fetch(`${API_BASE}/api/leads/bulk-update`, {
         method: 'POST',
-        headers: {
-          'Authorization': 'Basic ' + btoa('admin:admin123')
-        },
+        headers,
         body: formData
       });
 
