@@ -913,61 +913,39 @@ router.post("/bulk-update", upload.single('file'), async (req, res) => {
       }
     }
 
-    // Process updates in batches of 100
-    const batchSize = 100;
-    let updated = 0;
-
-    for (let i = 0; i < updates.length; i += batchSize) {
-      const batch = updates.slice(i, i + batchSize);
-      
-      // Build bulk UPDATE query with CASE statements
-      const statusCases = batch.map((u, idx) => `WHEN ${u.leadId}::bigint THEN $${idx + 2}::text`).join(' ');
-      const conversionDateCases = batch.map((u, idx) => `WHEN ${u.leadId}::bigint THEN $${idx + 2 + batch.length}::date`).join(' ');
-      const statusUpdatedDateCases = batch.map((u, idx) => `WHEN ${u.leadId}::bigint THEN $${idx + 2 + batch.length * 2}::timestamp`).join(' ');
-      const disqualifiedReasonCases = batch.map((u, idx) => `WHEN ${u.leadId}::bigint THEN $${idx + 2 + batch.length * 3}::text`).join(' ');
-      
-      const leadIds = batch.map(u => u.leadId);
-      const statuses = batch.map(u => u.status);
-      const conversionDates = batch.map(u => u.conversionDate);
-      const statusUpdatedDates = batch.map(u => u.statusUpdatedDate);
-      const disqualifiedReasons = batch.map(u => u.disqualifiedReason);
-
-      const bulkUpdateQuery = `
-        UPDATE leads 
-        SET 
-          status = CASE id ${statusCases} ELSE status END,
-          conversion_date = CASE id ${conversionDateCases} ELSE conversion_date END,
-          status_updated_at = CASE id ${statusUpdatedDateCases} ELSE status_updated_at END,
-          disqualified_reason = CASE id ${disqualifiedReasonCases} ELSE disqualified_reason END
-        WHERE id = ANY($${batch.length * 4 + 1}::bigint[])
-      `;
-
-      const values = [
-        ...statuses,
-        ...conversionDates,
-        ...statusUpdatedDates,
-        ...disqualifiedReasons,
-        leadIds
-      ];
-
+    // Process updates individually to avoid parameter type issues
+    for (const update of updates) {
       try {
-        await pool.query(bulkUpdateQuery, values);
-        updated += batch.length;
-      } catch (err) {
-        console.error('Bulk update error for batch:', err);
-        console.error('Query:', bulkUpdateQuery);
-        console.error('Values:', values);
-        throw err;
-      }
-
-      // Add to updated details
-      batch.forEach(u => {
+        const updateQuery = `
+          UPDATE leads 
+          SET 
+            status = $1,
+            conversion_date = $2,
+            status_updated_at = $3,
+            disqualified_reason = $4
+          WHERE id = $5
+        `;
+        
+        await pool.query(updateQuery, [
+          update.status,
+          update.conversionDate,
+          update.statusUpdatedDate,
+          update.disqualifiedReason,
+          update.leadId
+        ]);
+        
+        updated++;
+        
+        // Add to updated details
         updatedDetails.push({
-          email: u.email,
-          name: u.name,
-          changes: u.changes
+          email: update.email,
+          name: update.name,
+          changes: update.changes
         });
-      });
+      } catch (err) {
+        console.error('Error updating lead:', update.email, err);
+        errors.push({ email: update.email, error: err.message });
+      }
     }
 
     res.json({
