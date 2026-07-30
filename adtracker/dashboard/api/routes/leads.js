@@ -861,9 +861,14 @@ router.post("/bulk-update", upload.single('file'), async (req, res) => {
           : null;
 
         // Get status updated date from Converted Date column
-        const statusUpdatedDate = row['Converted Date'] 
-          ? parseExcelDate(row['Converted Date']) 
-          : new Date().toISOString();
+        let statusUpdatedDate = new Date().toISOString();
+        if (row['Converted Date']) {
+          const parsedDate = parseExcelDate(row['Converted Date']);
+          if (parsedDate) {
+            // Convert date string to full timestamp (midnight of that day)
+            statusUpdatedDate = new Date(parsedDate + 'T00:00:00').toISOString();
+          }
+        }
 
         // Get disqualified reason from multiple possible columns
         const disqualifiedReason = row['Disqualified Reason*'] || 
