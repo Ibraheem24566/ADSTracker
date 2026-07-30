@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { getLeads, updateLead, deleteLead, createLead, getCampaigns } from "./api";
 import { ArrowUpIcon, ArrowDownIcon } from "./icons";
 
-const STATUS_OPTIONS = ["Contacted", "Appointment Sets", "Site Assessment", "Closed Won", "Closed Lost"];
+const STATUS_OPTIONS = ["Contacted", "Appointment Set", "Site Assessment", "Closed Won", "Closed Lost", "Disqualified"];
 
 function formatMatchLabel(status) {
   return { matched: "Matched", no_match: "No match", no_tracking_data: "No tracking data", manual: "Manual" }[status] || status;
@@ -41,21 +41,29 @@ function SortHeader({ id, label, sort, setSort, className }) {
 function todayMinus(days) {
   const d = new Date();
   d.setDate(d.getDate() - days);
-  return d.toISOString().slice(0, 10);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
   const [leads, setLeads] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMessage, setLoadingMessage] = useState("Loading leads...");
   const [filters, setFilters] = useState({ status: "", campaign_id: "", search: "", from: "", to: "" });
   const [sort, setSort] = useState({ key: "created_at", dir: "desc" });
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
   const [leadToDelete, setLeadToDelete] = useState(null);
   const [newLead, setNewLead] = useState({});
   const [editingLead, setEditingLead] = useState({});
+  const [bulkUploadFile, setBulkUploadFile] = useState(null);
+  const [bulkUploadResults, setBulkUploadResults] = useState(null);
+  const [bulkUploadLoading, setBulkUploadLoading] = useState(false);
 
   // combine manual filters with a keyword drill-down passed in from another tab
   const effectiveFilters = useMemo(
@@ -65,6 +73,14 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
 
   const load = useCallback(async () => {
     setLoading(true);
+    const loadingMessages = [
+      "Loading leads... 📋",
+      "Fetching your prospects... 🔍",
+      "Gathering leads... 🤝",
+      "Loading the squad... 👥",
+      "Retrieving leads... 📥"
+    ];
+    setLoadingMessage(loadingMessages[Math.floor(Math.random() * loadingMessages.length)]);
     try {
       const [leadRows, campaignRows] = await Promise.all([getLeads(effectiveFilters), getCampaigns()]);
       // Convert revenue to number for all leads
@@ -160,6 +176,15 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
   }
 
   function openEditModal(lead) {
+    const toLocalDateString = (timestamp) => {
+      if (!timestamp) return "";
+      const date = new Date(timestamp);
+      // Convert to local timezone and format as YYYY-MM-DD
+      return date.getFullYear() + '-' + 
+             String(date.getMonth() + 1).padStart(2, '0') + '-' + 
+             String(date.getDate()).padStart(2, '0');
+    };
+
     setEditingLead({
       id: lead.id,
       first_name: lead.first_name || "",
@@ -170,9 +195,10 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
       campaign_id: lead.campaign_id || "",
       raw_keyword_text: lead.raw_keyword_text || "",
       gclid: lead.gclid || "",
-      created_at: lead.created_at ? lead.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
-      conversion_date: lead.conversion_date ? lead.conversion_date.split('T')[0] : new Date().toISOString().split('T')[0],
-      status_updated_at: lead.status_updated_at ? lead.status_updated_at.split('T')[0] : ""
+      disqualified_reason: lead.disqualified_reason || "",
+      created_at: toLocalDateString(lead.created_at) || new Date().toISOString().split('T')[0],
+      conversion_date: toLocalDateString(lead.conversion_date) || "",
+      status_updated_at: toLocalDateString(lead.status_updated_at) || ""
     });
     setShowEditModal(true);
   }
@@ -185,11 +211,18 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
         status: editingLead.status,
         revenue: editingLead.revenue,
         campaign_id: editingLead.campaign_id || null,
-        raw_keyword_text: editingLead.raw_keyword_text || null,
         gclid: editingLead.gclid || null,
+        disqualified_reason: editingLead.disqualified_reason || null,
         created_at: editingLead.created_at,
-        conversion_date: editingLead.conversion_date
+        conversion_date: editingLead.conversion_date || null
       };
+      
+      // Handle raw_keyword_text - send empty string to trigger clear, otherwise use value or null
+      if (editingLead.raw_keyword_text === '') {
+        updateData.raw_keyword_text = '';
+      } else {
+        updateData.raw_keyword_text = editingLead.raw_keyword_text || null;
+      }
       
       // Only include status_updated_at if it's not blank (manual override)
       if (editingLead.status_updated_at && editingLead.status_updated_at.trim() !== "") {
@@ -216,7 +249,10 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
         ...newLead,
         campaign_id: newLead.campaign_id || null,
         raw_keyword_text: newLead.raw_keyword_text || null,
-        gclid: newLead.gclid || null
+        gclid: newLead.gclid || null,
+        disqualified_reason: newLead.disqualified_reason || null,
+        conversion_date: newLead.conversion_date || null,
+        status_updated_at: newLead.status_updated_at || null
       };
       await createLead(createData);
       setShowCreateModal(false);
@@ -224,6 +260,42 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
       load();
     } catch (error) {
       alert("Failed to create lead: " + error.message);
+    }
+  }
+
+  async function handleBulkUpload(e) {
+    e.preventDefault();
+    if (!bulkUploadFile) {
+      alert("Please select a file to upload");
+      return;
+    }
+
+    setBulkUploadLoading(true);
+    setBulkUploadResults(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', bulkUploadFile);
+
+      const response = await fetch('http://localhost:3002/api/leads/bulk-update', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Basic ' + btoa('admin:admin123')
+        },
+        body: formData
+      });
+
+      const result = await response.json();
+      setBulkUploadResults(result);
+
+      if (result.success) {
+        load(); // Refresh leads after successful update
+      }
+    } catch (error) {
+      alert("Failed to upload file: " + error.message);
+      setBulkUploadResults({ success: false, error: error.message });
+    } finally {
+      setBulkUploadLoading(false);
     }
   }
 
@@ -256,6 +328,7 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
         />
         <span className="spacer" />
         <button className="btn btn-primary btn-sm" onClick={() => setShowCreateModal(true)}>+ Add Lead</button>
+        <button className="btn btn-sm" onClick={() => setShowBulkUploadModal(true)}>📤 Bulk Update</button>
         {keywordFilter?.id && (
           <span className="badge matched" style={{ cursor: "pointer" }} onClick={onClearKeywordFilter} title="Click to clear">
             Keyword: {keywordFilter.text} ✕
@@ -267,9 +340,9 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
       </div>
 
       {loading ? (
-        <div className="loading">Loading leads…</div>
+        <div className="loading">{loadingMessage}</div>
       ) : leads.length === 0 ? (
-        <div className="empty-state">No leads match these filters yet.</div>
+        <div className="empty-state">No leads match these filters yet. 📭</div>
       ) : (
         <div className="table-wrap fade-in">
           <table>
@@ -286,6 +359,7 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                 <SortHeader id="conversion_date" label="Conversion Date" sort={sort} setSort={setSort} />
                 <th>Status Updated</th>
                 <th>Click ID</th>
+                <th>Disqualified/Closed Lost Reason</th>
               </tr>
             </thead>
             <tbody>
@@ -335,6 +409,7 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                   <td>{lead.conversion_date ? new Date(lead.conversion_date).toLocaleDateString() : "—"}</td>
                   <td>{lead.status_updated_at ? new Date(lead.status_updated_at).toLocaleDateString() : "—"}</td>
                   <td style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>{lead.gclid || "—"}</td>
+                  <td>{lead.disqualified_reason || "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -411,6 +486,15 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                 />
               </div>
               <div className="form-group">
+                <label>Disqualified/Closed Lost Reason</label>
+                <input
+                  type="text"
+                  value={newLead.disqualified_reason || ""}
+                  onChange={(e) => setNewLead({ ...newLead, disqualified_reason: e.target.value })}
+                  placeholder="Reason for disqualification or closed lost"
+                />
+              </div>
+              <div className="form-group">
                 <label>Click ID (GCLID)</label>
                 <input
                   type="text"
@@ -431,9 +515,21 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                 <label>Conversion Date</label>
                 <input
                   type="date"
-                  value={newLead.conversion_date || new Date().toISOString().split('T')[0]}
+                  value={newLead.conversion_date || ""}
                   onChange={(e) => setNewLead({ ...newLead, conversion_date: e.target.value })}
                 />
+              </div>
+              <div className="form-group">
+                <label>Status Updated Date</label>
+                <input
+                  type="date"
+                  value={newLead.status_updated_at || ""}
+                  onChange={(e) => setNewLead({ ...newLead, status_updated_at: e.target.value || null })}
+                  placeholder="Leave blank to auto-set on status change"
+                />
+                <small style={{ color: "var(--text-muted)", fontSize: "11px" }}>
+                  Leave blank to auto-set to current time when status changes
+                </small>
               </div>
               <div className="modal-actions">
                 <button type="button" className="btn" onClick={() => setShowCreateModal(false)}>Cancel</button>
@@ -512,6 +608,15 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                 />
               </div>
               <div className="form-group">
+                <label>Disqualified/Closed Lost Reason</label>
+                <input
+                  type="text"
+                  value={editingLead.disqualified_reason || ""}
+                  onChange={(e) => setEditingLead({ ...editingLead, disqualified_reason: e.target.value })}
+                  placeholder="Reason for disqualification or closed lost"
+                />
+              </div>
+              <div className="form-group">
                 <label>Click ID (GCLID)</label>
                 <input
                   type="text"
@@ -532,7 +637,7 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                 <label>Conversion Date</label>
                 <input
                   type="date"
-                  value={editingLead.conversion_date || new Date().toISOString().split('T')[0]}
+                  value={editingLead.conversion_date || ""}
                   onChange={(e) => setEditingLead({ ...editingLead, conversion_date: e.target.value })}
                 />
               </div>
@@ -541,7 +646,7 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                 <input
                   type="date"
                   value={editingLead.status_updated_at || ""}
-                  onChange={(e) => setEditingLead({ ...editingLead, status_updated_at: e.target.value })}
+                  onChange={(e) => setEditingLead({ ...editingLead, status_updated_at: e.target.value || null })}
                   placeholder="Leave blank to auto-set on status change"
                 />
                 <small style={{ color: "var(--text-muted)", fontSize: "11px" }}>
@@ -566,6 +671,105 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
               <button type="button" className="btn" onClick={() => setShowDeleteConfirm(false)}>Cancel</button>
               <button type="button" className="btn btn-danger" onClick={confirmDelete}>Delete</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showBulkUploadModal && (
+        <div className="modal-overlay" onClick={() => setShowBulkUploadModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 500 }}>
+            <h2>Bulk Status Update</h2>
+            <p>Upload an Excel file to update lead statuses, conversion dates, and disqualified reasons.</p>
+            
+            <form onSubmit={handleBulkUpload}>
+              <div className="form-group">
+                <label>Select File (.xlsx, .xls, .csv)</label>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={(e) => setBulkUploadFile(e.target.files[0])}
+                  required
+                />
+                <small style={{ color: "var(--text-muted)", fontSize: "11px" }}>
+                  File should contain columns: Email, Lead Status, Converted, Converted Date, Disqualified Reason
+                </small>
+              </div>
+
+              {bulkUploadResults && (
+                <div style={{ 
+                  padding: "12px", 
+                  borderRadius: "4px", 
+                  backgroundColor: bulkUploadResults.success ? "var(--success-soft)" : "var(--error-soft)",
+                  marginBottom: "16px"
+                }}>
+                  {bulkUploadResults.success ? (
+                    <div>
+                      <strong>✓ Upload Successful</strong>
+                      <div style={{ marginTop: "8px" }}>
+                        <div>Updated: {bulkUploadResults.updated} leads</div>
+                        <div>Not found: {bulkUploadResults.notFound} leads</div>
+                        {bulkUploadResults.errors > 0 && (
+                          <div style={{ color: "var(--error)" }}>
+                            Errors: {bulkUploadResults.errors}
+                          </div>
+                        )}
+                      </div>
+                      {bulkUploadResults.updatedDetails && bulkUploadResults.updatedDetails.length > 0 && (
+                        <div style={{ marginTop: "12px" }}>
+                          <strong>Changes made:</strong>
+                          <div style={{ 
+                            maxHeight: "200px", 
+                            overflowY: "auto", 
+                            marginTop: "8px",
+                            fontSize: "12px",
+                            backgroundColor: "white",
+                            padding: "8px",
+                            borderRadius: "4px"
+                          }}>
+                            {bulkUploadResults.updatedDetails.map((detail, idx) => (
+                              <div key={idx} style={{ marginBottom: "8px", paddingBottom: "8px", borderBottom: "1px solid #eee" }}>
+                                <div style={{ fontWeight: "bold" }}>{detail.name} ({detail.email})</div>
+                                {Object.keys(detail.changes).length > 0 ? (
+                                  <div style={{ marginLeft: "12px" }}>
+                                    {Object.entries(detail.changes).map(([field, change]) => (
+                                      <div key={field}>
+                                        {field}: {change.from || '(empty)'} → {change.to || '(empty)'}
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div style={{ marginLeft: "12px", color: "var(--text-muted)" }}>No changes</div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ color: "var(--error)" }}>
+                      <strong>✗ Upload Failed</strong>
+                      <div>{bulkUploadResults.error || "Unknown error"}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="modal-actions">
+                <button type="button" className="btn" onClick={() => {
+                  setShowBulkUploadModal(false);
+                  setBulkUploadFile(null);
+                  setBulkUploadResults(null);
+                }}>Cancel</button>
+                <button 
+                  type="submit" 
+                  className="btn btn-primary" 
+                  disabled={bulkUploadLoading}
+                >
+                  {bulkUploadLoading ? "Processing..." : "Upload & Update"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

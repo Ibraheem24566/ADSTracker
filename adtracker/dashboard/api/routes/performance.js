@@ -28,6 +28,8 @@ function withDerivedMetrics(row) {
     cost_per_lead: leadCount > 0 ? costMicros / 1_000_000 / leadCount : null,
     avg_impression_share: row.avg_impression_share !== null ? Number(row.avg_impression_share) : null,
     avg_quality_score: row.avg_quality_score !== null ? Number(row.avg_quality_score) : null,
+    // Ensure date is returned as string to prevent timezone conversion
+    date: row.date ? String(row.date) : null,
   };
 }
 
@@ -39,6 +41,11 @@ router.get("/", async (req, res) => {
   if (!from || !to) {
     return res.status(400).json({ error: "from and to date params are required (YYYY-MM-DD)" });
   }
+
+  // Ensure dates are treated as local dates, not UTC
+  // The date strings from frontend are already in YYYY-MM-DD format, use them directly
+  const fromDate = from;
+  const toDate = to;
 
   const campaignFilter = campaign_id ? "AND ds.campaign_id = $3" : "";
   const params = campaign_id ? [from, to, campaign_id] : [from, to];
@@ -100,7 +107,7 @@ router.get("/", async (req, res) => {
   } else if (groupBy === "date") {
     query = `
       SELECT
-        ds.date,
+        TO_CHAR(ds.date, 'YYYY-MM-DD') AS date,
         SUM(ds.impressions) AS impressions,
         SUM(ds.clicks) AS clicks,
         SUM(ds.cost_micros) AS cost_micros,
@@ -111,14 +118,14 @@ router.get("/", async (req, res) => {
         COALESCE(lead_counts.lead_count, 0) AS lead_count
       FROM daily_stats ds
       LEFT JOIN (
-        SELECT created_at::date AS lead_date, COUNT(*) AS lead_count
+        SELECT TO_CHAR(created_at::date, 'YYYY-MM-DD') AS lead_date, COUNT(*) AS lead_count
         FROM leads
         WHERE created_at::date BETWEEN $1 AND $2
         GROUP BY created_at::date
-      ) lead_counts ON lead_counts.lead_date = ds.date
+      ) lead_counts ON lead_counts.lead_date = TO_CHAR(ds.date, 'YYYY-MM-DD')
       WHERE ds.date BETWEEN $1 AND $2 ${campaignFilter}
-      GROUP BY ds.date, lead_counts.lead_count
-      ORDER BY ds.date ASC
+      GROUP BY TO_CHAR(ds.date, 'YYYY-MM-DD'), lead_counts.lead_count
+      ORDER BY TO_CHAR(ds.date, 'YYYY-MM-DD') ASC
     `;
   } else {
     return res.status(400).json({ error: "group_by must be one of: keyword, campaign, date" });

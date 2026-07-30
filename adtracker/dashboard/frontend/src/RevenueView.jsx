@@ -37,7 +37,7 @@ export default function RevenueView() {
       // Calculate status counts
       const statusCounts = {
         Contacted: leads.filter(l => l.status === 'Contacted').length,
-        "Appointment Sets": leads.filter(l => l.status === 'Appointment Sets').length,
+        "Appointment Set": leads.filter(l => l.status === 'Appointment Set').length,
         "Site Assessment": leads.filter(l => l.status === 'Site Assessment').length,
         "Closed Won": leads.filter(l => l.status === 'Closed Won').length,
         "Closed Lost": leads.filter(l => l.status === 'Closed Lost').length
@@ -173,11 +173,11 @@ export default function RevenueView() {
               </div>
             </div>
             <div className="stat-card">
-              <div className="label">Appointment Sets</div>
+              <div className="label">Appointment Set</div>
               <div className="value-row">
-                <div className="value">{revenueData.statusCounts["Appointment Sets"]}</div>
+                <div className="value">{revenueData.statusCounts["Appointment Set"]}</div>
                 <div className="change" style={{ color: "var(--text-muted)" }}>
-                  {revenueData.totalLeads > 0 ? ((revenueData.statusCounts["Appointment Sets"] / revenueData.totalLeads) * 100).toFixed(1) : 0}%
+                  {revenueData.totalLeads > 0 ? ((revenueData.statusCounts["Appointment Set"] / revenueData.totalLeads) * 100).toFixed(1) : 0}%
                 </div>
               </div>
             </div>

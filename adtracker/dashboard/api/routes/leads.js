@@ -1,7 +1,16 @@
 const express = require("express");
 const pool = require("../db");
+const multer = require("multer");
+const xlsx = require("xlsx");
+const fs = require("fs");
 
 const router = express.Router();
+
+// Configure multer for file uploads (memory storage)
+const upload = multer({ 
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+});
 
 // Add conversion_date column if it doesn't exist
 pool.query(`
@@ -23,6 +32,16 @@ pool.query(`
   }
 });
 
+// Add disqualified_reason column if it doesn't exist
+pool.query(`
+  ALTER TABLE leads 
+  ADD COLUMN IF NOT EXISTS disqualified_reason TEXT
+`).catch(err => {
+  if (err.code !== '42701') { // Ignore if column already exists
+    console.error('Failed to add disqualified_reason column:', err);
+  }
+});
+
 // Backfill status_updated_at for existing records that have NULL values
 pool.query(`
   UPDATE leads 
@@ -32,7 +51,7 @@ pool.query(`
   console.error('Failed to backfill status_updated_at:', err);
 });
 
-const EDITABLE_FIELDS = ["status", "value", "revenue", "campaign_id", "raw_keyword_text", "gclid", "created_at", "conversion_date", "status_updated_at"];
+const EDITABLE_FIELDS = ["status", "value", "revenue", "campaign_id", "raw_keyword_text", "gclid", "disqualified_reason", "created_at", "conversion_date", "status_updated_at"];
 
 // GET /api/leads?status=&campaign_id=&from=&to=&search=
 router.get("/", async (req, res) => {
@@ -72,7 +91,7 @@ router.get("/", async (req, res) => {
       `SELECT
          l.id, l.name, l.first_name, l.last_name, l.email, l.gclid, l.raw_keyword_text,
          l.match_status, l.status, l.value, l.revenue, l.source,
-         l.sold, l.rejection_reason,
+         l.sold, l.rejection_reason, l.disqualified_reason,
          l.created_at, l.updated_at, l.conversion_date, l.status_updated_at,
          l.campaign_id, c.name AS campaign_name, ag.name AS ad_group_name, k.text AS keyword_text
        FROM leads l
@@ -98,6 +117,19 @@ router.get("/", async (req, res) => {
 router.patch("/:id", async (req, res) => {
   const { id } = req.params;
   const updates = Object.keys(req.body).filter((key) => EDITABLE_FIELDS.includes(key));
+
+  // Convert empty strings to null for timestamp fields
+  const timestampFields = ['conversion_date', 'status_updated_at', 'created_at'];
+  for (const field of timestampFields) {
+    if (req.body[field] === '') {
+      req.body[field] = null;
+    }
+  }
+
+  // Convert empty strings to null for keyword field
+  if (req.body.raw_keyword_text === '') {
+    req.body.raw_keyword_text = null;
+  }
 
   // Filter out empty strings for numeric fields to avoid type errors
   const numericFields = ['value', 'revenue'];
@@ -130,8 +162,8 @@ router.patch("/:id", async (req, res) => {
       setClauses.push(`${field} = $${params.length}`);
     }
 
-    // Auto-set status_updated_at when status changes and field is blank/not provided
-    if (filteredUpdates.includes('status') && !filteredUpdates.includes('status_updated_at')) {
+    // Auto-set status_updated_at when status actually changes and field is blank/not provided
+    if (filteredUpdates.includes('status') && !filteredUpdates.includes('status_updated_at') && req.body.status !== existing.status) {
       params.push(new Date().toISOString());
       setClauses.push(`status_updated_at = $${params.length}`);
     }
@@ -148,7 +180,16 @@ router.patch("/:id", async (req, res) => {
       const created_at = req.body.created_at !== undefined ? req.body.created_at : existing.created_at;
       const conversion_date = req.body.conversion_date !== undefined ? req.body.conversion_date : existing.conversion_date;
       
-      if (raw_keyword_text && campaign_id) {
+      // If raw_keyword_text is being cleared, also clear keyword attribution
+      if (updates.includes('raw_keyword_text') && (raw_keyword_text === null || raw_keyword_text === '')) {
+        setClauses.push(`keyword_id = NULL`);
+        if (!setClauses.some(clause => clause.startsWith('campaign_id ='))) {
+          setClauses.push(`campaign_id = NULL`);
+        }
+        setClauses.push(`ad_group_id = NULL`);
+        setClauses.push(`match_status = 'no_tracking_data'`);
+        console.log('Clearing keyword attribution for lead:', id);
+      } else if (raw_keyword_text && campaign_id) {
         // Use conversion_date if available, otherwise fall back to created_at
         const lookupDate = conversion_date || created_at;
         if (lookupDate) {
@@ -612,12 +653,32 @@ router.post("/create-from-logs", async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    // Resolve keyword attribution
+    // Resolve keyword attribution using date-based matching
     let campaign_id = null, ad_group_id = null, keyword_id = null, match_status = "no_tracking_data";
     
+    // Use the lead's created_date for date-based matching
+    const leadDate = created_date ? new Date(created_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+    
     if (gclid || raw_keyword_text) {
-      // Try to match by gclid first
-      if (gclid) {
+      // First try: match by keyword text against daily_stats for the lead's date
+      if (raw_keyword_text) {
+        const { rows } = await client.query(
+          `SELECT ds.keyword_id, ds.campaign_id, ds.ad_group_id, k.text as keyword_text
+           FROM daily_stats ds
+           JOIN keywords k ON k.id = ds.keyword_id
+           WHERE ds.date = $1 AND LOWER(k.text) = LOWER($2)
+           LIMIT 1`,
+          [leadDate, raw_keyword_text]
+        );
+        
+        if (rows.length > 0) {
+          ({ keyword_id, campaign_id, ad_group_id } = rows[0]);
+          match_status = "matched";
+        }
+      }
+      
+      // Second try: match by gclid from gclid_mappings
+      if (!keyword_id && gclid) {
         const { rows } = await client.query(
           `SELECT c.id AS campaign_id, ag.id AS ad_group_id, k.id AS keyword_id
            FROM gclid_mappings gm
@@ -636,7 +697,7 @@ router.post("/create-from-logs", async (req, res) => {
         }
       }
       
-      // Fallback: try matching by raw_keyword_text if gclid didn't match
+      // Fallback: try matching by raw_keyword_text directly against keywords table
       if (!keyword_id && raw_keyword_text) {
         // Try exact match first
         const { rows } = await client.query(
@@ -711,5 +772,219 @@ router.post("/create-from-logs", async (req, res) => {
     client.release();
   }
 });
+
+// POST /api/leads/bulk-update - Upload Excel/CSV file for bulk status updates
+router.post("/bulk-update", upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
+    // Parse Excel or CSV file
+    const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const data = xlsx.utils.sheet_to_json(worksheet);
+
+    // Status mapping from CRM to dashboard
+    const statusMap = {
+      'Appointment Set': 'Appointment Set',
+      'In Process': 'Contacted',
+      'Open': 'Contacted',
+      'Contacted': 'Contacted',
+      'Disqualified': 'Disqualified',
+      'Closed Won': 'Closed Won',
+      'Closed Lost': 'Closed Lost',
+      'Proposal': 'Appointment Set',
+      'Site Assessment': 'Site Assessment',
+      'Qualified': 'Appointment Set',
+      'Negotiation': 'Contacted',
+      'Qualified Lead': 'Contacted',
+      'New': 'Contacted',
+      'Working': 'Contacted',
+      'Pre-Sale qualification': 'Appointment Set'
+    };
+
+    // Extract all emails from Excel file
+    const emails = data
+      .map(row => row['Email'])
+      .filter(email => email)
+      .map(email => email.toLowerCase());
+
+    if (emails.length === 0) {
+      return res.status(400).json({ error: "No valid emails found in file" });
+    }
+
+    // Fetch all existing leads in one query
+    const leadsResult = await pool.query(
+      'SELECT id, email, first_name, last_name, status, conversion_date, disqualified_reason FROM leads WHERE email = ANY($1)',
+      [emails]
+    );
+
+    // Create email-to-lead map for fast lookup
+    const leadMap = {};
+    leadsResult.rows.forEach(lead => {
+      leadMap[lead.email.toLowerCase()] = lead;
+    });
+
+    // Process Excel data and prepare updates
+    const updates = [];
+    let notFound = 0;
+    let errors = [];
+    let updatedDetails = [];
+
+    for (const row of data) {
+      try {
+        const email = row['Email'];
+        if (!email) continue;
+
+        const emailLower = email.toLowerCase();
+        const lead = leadMap[emailLower];
+
+        if (!lead) {
+          notFound++;
+          continue;
+        }
+
+        // Map status - prioritize Stage column, fall back to Lead Status
+        const stageValue = row['Stage'];
+        const leadStatusValue = row['Lead Status'];
+        
+        // Only use Lead Status if Stage is empty or undefined
+        const crmStatus = (stageValue && stageValue.trim() !== '') ? stageValue : (leadStatusValue || '');
+        const dashboardStatus = statusMap[crmStatus] || 'Contacted';
+
+        // Get conversion date if converted
+        const conversionDate = row['Converted'] === 'TRUE' && row['Converted Date'] 
+          ? parseExcelDate(row['Converted Date']) 
+          : null;
+
+        // Get disqualified reason from multiple possible columns
+        const disqualifiedReason = row['Disqualified Reason*'] || 
+                                  row['Closed Lost Reason'] || 
+                                  row['Disqualified Reason'] || null;
+
+        // Track what's changing
+        const changes = {};
+        if (lead.status !== dashboardStatus) {
+          changes.status = { from: lead.status, to: dashboardStatus };
+        }
+        if (conversionDate && lead.conversion_date !== conversionDate) {
+          changes.conversion_date = { from: lead.conversion_date, to: conversionDate };
+        }
+        if (disqualifiedReason && lead.disqualified_reason !== disqualifiedReason) {
+          changes.disqualified_reason = { from: lead.disqualified_reason, to: disqualifiedReason };
+        }
+
+        // Only update if there are actual changes
+        if (Object.keys(changes).length === 0) {
+          continue;
+        }
+
+        updates.push({
+          leadId: lead.id,
+          email: emailLower,
+          name: `${lead.first_name} ${lead.last_name}`,
+          status: dashboardStatus,
+          conversionDate,
+          disqualifiedReason,
+          changes
+        });
+
+      } catch (err) {
+        console.error('Error processing row:', err);
+        errors.push({ email: row['Email'], error: err.message });
+      }
+    }
+
+    // Process updates in batches of 100
+    const batchSize = 100;
+    let updated = 0;
+
+    for (let i = 0; i < updates.length; i += batchSize) {
+      const batch = updates.slice(i, i + batchSize);
+      
+      // Build bulk UPDATE query with CASE statements
+      const statusCases = batch.map((u, idx) => `WHEN ${u.leadId}::bigint THEN $${idx + 2}::text`).join(' ');
+      const conversionDateCases = batch.map((u, idx) => `WHEN ${u.leadId}::bigint THEN $${idx + 2 + batch.length}::date`).join(' ');
+      const disqualifiedReasonCases = batch.map((u, idx) => `WHEN ${u.leadId}::bigint THEN $${idx + 2 + batch.length * 2}::text`).join(' ');
+      
+      const leadIds = batch.map(u => u.leadId);
+      const statuses = batch.map(u => u.status);
+      const conversionDates = batch.map(u => u.conversionDate);
+      const disqualifiedReasons = batch.map(u => u.disqualifiedReason);
+
+      const bulkUpdateQuery = `
+        UPDATE leads 
+        SET 
+          status = CASE id ${statusCases} ELSE status END,
+          conversion_date = CASE id ${conversionDateCases} ELSE conversion_date END,
+          disqualified_reason = CASE id ${disqualifiedReasonCases} ELSE disqualified_reason END,
+          status_updated_at = $1
+        WHERE id = ANY($${batch.length * 3 + 2}::bigint[])
+      `;
+
+      const values = [
+        new Date().toISOString(),
+        ...statuses,
+        ...conversionDates,
+        ...disqualifiedReasons,
+        leadIds
+      ];
+
+      await pool.query(bulkUpdateQuery, values);
+      updated += batch.length;
+
+      // Add to updated details
+      batch.forEach(u => {
+        updatedDetails.push({
+          email: u.email,
+          name: u.name,
+          changes: u.changes
+        });
+      });
+    }
+
+    res.json({
+      success: true,
+      updated,
+      notFound,
+      errors: errors.length,
+      errorDetails: errors,
+      updatedDetails
+    });
+
+  } catch (err) {
+    console.error('Bulk update error:', err);
+    res.status(500).json({ error: 'Failed to process bulk update' });
+  }
+});
+
+// Helper function to parse Excel dates
+function parseExcelDate(dateValue) {
+  if (!dateValue) return null;
+  
+  // Excel serial date
+  if (typeof dateValue === 'number') {
+    const excelDate = new Date(Math.round((dateValue - 25569) * 86400 * 1000));
+    return excelDate.toISOString().split('T')[0];
+  }
+  
+  // String date (MM/DD/YYYY or YYYY-MM-DD)
+  if (typeof dateValue === 'string') {
+    const parts = dateValue.includes('/') 
+      ? dateValue.split('/') 
+      : dateValue.split('-');
+    
+    if (parts.length === 3) {
+      const year = parts[0].length === 4 ? parts[0] : parts[2];
+      const month = parts[0].length === 4 ? parts[1] : parts[0];
+      const day = parts[0].length === 4 ? parts[2] : parts[1];
+      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    }
+  }
+  
+  return null;
+}
 
 module.exports = router;

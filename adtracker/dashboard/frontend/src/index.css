@@ -91,7 +91,7 @@ body {
 }
 
 .app {
-  max-width: 1240px;
+  max-width: 1350px;
   margin: 0 auto;
   padding: 0 24px 72px;
 }
@@ -496,7 +496,7 @@ body {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 13px 14px;
+  padding: 14px 16px;
   box-shadow: var(--shadow-sm);
   transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
@@ -918,7 +918,17 @@ input.inline-edit.value { font-family: var(--font-mono); text-align: right; }
   padding: 24px;
   max-width: 400px;
   width: 90%;
+  max-height: 90vh;
   box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+}
+
+.modal form {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 8px;
+  margin-right: -8px;
 }
 
 .modal h2 {
@@ -972,7 +982,9 @@ input.inline-edit.value { font-family: var(--font-mono); text-align: right; }
   display: flex;
   gap: 10px;
   margin-top: 24px;
+  margin-bottom: 8px;
   justify-content: flex-end;
+  padding-bottom: 8px;
 }
 
 .modal-actions button {

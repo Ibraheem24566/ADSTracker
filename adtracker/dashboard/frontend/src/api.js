@@ -65,6 +65,6 @@ export function getCampaigns() {
 }
 
 export function getOverview(params = {}) {
-  const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v));
+  const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== ''));
   return request(`/api/overview?${qs.toString()}`);
 }
