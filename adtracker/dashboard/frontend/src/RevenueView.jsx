@@ -40,7 +40,8 @@ export default function RevenueView() {
         "Appointment Set": leads.filter(l => l.status === 'Appointment Set').length,
         "Site Assessment": leads.filter(l => l.status === 'Site Assessment').length,
         "Closed Won": leads.filter(l => l.status === 'Closed Won').length,
-        "Closed Lost": leads.filter(l => l.status === 'Closed Lost').length
+        "Closed Lost": leads.filter(l => l.status === 'Closed Lost').length,
+        Disqualified: leads.filter(l => l.status === 'Disqualified').length
       };
 
       setRevenueData({
@@ -191,11 +192,11 @@ export default function RevenueView() {
               </div>
             </div>
             <div className="stat-card">
-              <div className="label">Closed Won</div>
+              <div className="label">Rejected Leads</div>
               <div className="value-row">
-                <div className="value" style={{ color: "var(--success)" }}>{revenueData.statusCounts["Closed Won"]}</div>
+                <div className="value" style={{ color: "var(--danger)" }}>{revenueData.statusCounts.Disqualified}</div>
                 <div className="change" style={{ color: "var(--text-muted)" }}>
-                  {revenueData.totalLeads > 0 ? ((revenueData.statusCounts["Closed Won"] / revenueData.totalLeads) * 100).toFixed(1) : 0}%
+                  {revenueData.totalLeads > 0 ? ((revenueData.statusCounts.Disqualified / revenueData.totalLeads) * 100).toFixed(1) : 0}%
                 </div>
               </div>
             </div>

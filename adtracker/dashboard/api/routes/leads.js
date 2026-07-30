@@ -802,7 +802,8 @@ router.post("/bulk-update", upload.single('file'), async (req, res) => {
       'Qualified Lead': 'Contacted',
       'New': 'Contacted',
       'Working': 'Contacted',
-      'Pre-Sale qualification': 'Appointment Set'
+      'Pre-Sale qualification': 'Appointment Set',
+      'Pre-Sale Qualification': 'Appointment Set'
     };
 
     // Extract all emails from Excel file

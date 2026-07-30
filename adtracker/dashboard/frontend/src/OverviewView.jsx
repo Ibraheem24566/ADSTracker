@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { getOverview, getPerformance } from "./api";
+import { getOverview, getPerformance, getCampaigns } from "./api";
 import TrendChart from "./TrendChart";
 import StatCard from "./StatCard";
 import InsightsPanel from "./InsightsPanel";
@@ -17,7 +17,10 @@ function fmtChange(current, previous) {
 function todayMinus(days) {
   const d = new Date();
   d.setDate(d.getDate() - days);
-  return d.toISOString().slice(0, 10);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 const SEVERITY_LABEL = { high: "High", medium: "Medium", low: "Low" };
@@ -35,20 +38,41 @@ export default function OverviewView({ onSelectKeyword }) {
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState({ from: todayMinus(7), to: todayMinus(0) });
   const [chartMetrics, setChartMetrics] = useState(["revenue", "cost"]);
+  const [campaigns, setCampaigns] = useState([]);
+  const [selectedCampaign, setSelectedCampaign] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const overview = await getOverview(range);
+      const params = { ...range };
+      if (selectedCampaign) {
+        params.campaign_id = selectedCampaign;
+      }
+      const overview = await getOverview(params);
       setData(overview);
+    } catch (error) {
+      console.error('Failed to load overview:', error);
     } finally {
       setLoading(false);
     }
-  }, [range]);
+  }, [range, selectedCampaign]);
+
+  useEffect(() => {
+    async function loadCampaigns() {
+      try {
+        const campaignsData = await getCampaigns();
+        setCampaigns(campaignsData);
+      } catch (error) {
+        console.error('Failed to load campaigns:', error);
+      }
+    }
+    loadCampaigns();
+  }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  if (!data) return <div className="loading">Loading overview…</div>;
+  if (!data && loading) return <div className="loading">Loading overview… 🚀</div>;
+  if (!data) return <div className="loading">Failed to load overview 😢</div>;
 
   const { current, previous, trend, alerts, rejection_insight, period } = data;
 
@@ -77,8 +101,17 @@ export default function OverviewView({ onSelectKeyword }) {
           value={range.to} 
           onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))} 
         />
-        <span className="spacer" />
-        <span style={{ fontSize: 12, color: "var(--text-faint)" }}>{period.from} → {period.to}</span>
+        <select 
+          value={selectedCampaign} 
+          onChange={(e) => setSelectedCampaign(e.target.value)}
+        >
+          <option value="">All campaigns</option>
+          {campaigns.map((campaign) => (
+            <option key={campaign.id} value={campaign.id}>
+              {campaign.name}
+            </option>
+          ))}
+        </select>
       </div>
 
       {loading && <div className="loading">Loading overview…</div>}

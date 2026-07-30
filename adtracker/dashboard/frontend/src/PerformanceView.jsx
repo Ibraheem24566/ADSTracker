@@ -5,7 +5,10 @@ import { ArrowUpIcon, ArrowDownIcon } from "./icons";
 function todayMinus(days) {
   const d = new Date();
   d.setDate(d.getDate() - days);
-  return d.toISOString().slice(0, 10);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function fmtMoney(n) { return `$${Number(n).toFixed(2)}`; }
@@ -110,9 +113,9 @@ export default function PerformanceView({ onSelectKeyword }) {
       </div>
 
       {loading ? (
-        <div className="loading">Loading performance data…</div>
+        <div className="loading">Loading performance data… 📊</div>
       ) : rows.length === 0 ? (
-        <div className="empty-state">No performance data for this range yet — run the sync script from Part 3.</div>
+        <div className="empty-state">No performance data for this range yet — run the sync script from Part 3. 📭</div>
       ) : (
         <div className="table-wrap fade-in">
           <table>
@@ -142,7 +145,7 @@ export default function PerformanceView({ onSelectKeyword }) {
                     style={groupBy === "keyword" && onSelectKeyword ? { cursor: "pointer", textDecoration: "underline" } : undefined}
                     onClick={groupBy === "keyword" ? () => onSelectKeyword?.(r.keyword_id, r.keyword_text) : undefined}
                   >
-                    {groupBy === "date" ? r.date?.slice(0, 10) : groupBy === "campaign" ? r.campaign_name : r.keyword_text}
+                    {groupBy === "date" ? r.date : groupBy === "campaign" ? r.campaign_name : r.keyword_text}
                   </td>
                   {groupBy === "keyword" && <td>{r.campaign_name}</td>}
                   {groupBy !== "campaign" && <td style={{ fontSize: 11, color: "var(--text-muted)" }}>{r.campaign_id}</td>}
