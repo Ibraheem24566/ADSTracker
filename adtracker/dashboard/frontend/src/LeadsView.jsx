@@ -277,7 +277,7 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
       const formData = new FormData();
       formData.append('file', bulkUploadFile);
 
-      const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:3002";
+      const API_BASE = (import.meta.env.VITE_API_BASE || "http://localhost:3002").replace(/\/$/, '');
       const response = await fetch(`${API_BASE}/api/leads/bulk-update`, {
         method: 'POST',
         headers: {
