@@ -929,7 +929,7 @@ router.post("/bulk-update", upload.single('file'), async (req, res) => {
       const leadIds = batch.map(u => u.leadId);
       const statuses = batch.map(u => u.status);
       const conversionDates = batch.map(u => u.conversionDate);
-      const statusUpdatedDates = batch.map(u => u.statusUpdatedDate);
+      const statusUpdatedDates = batch.map(u => u.statusUpdatedDate || null);
       const disqualifiedReasons = batch.map(u => u.disqualifiedReason);
 
       const bulkUpdateQuery = `
