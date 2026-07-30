@@ -21,7 +21,8 @@ function withDerivedMetrics(row) {
     ctr: impressions > 0 ? clicks / impressions : 0,
     avg_cpc: clicks > 0 ? costMicros / 1_000_000 / clicks : 0,
     conversion_rate: clicks > 0 ? conversions / clicks : 0,
-    cost_per_conversion: conversions > 0 ? costMicros / 1_000_000 / conversions : null,
+    // Cost per conversion based on actual lead count, not Google conversions
+    cost_per_conversion: leadCount > 0 ? costMicros / 1_000_000 / leadCount : null,
     // Cost per *actual lead in our system*, not just Google's conversion count --
     // useful in a ping-post setup where "conversion" (form submit) and
     // "lead we could actually sell" aren't always the same thing.
