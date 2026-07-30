@@ -16,7 +16,8 @@ app.use(
       const allowedOrigins = [
         process.env.FRONTEND_ORIGIN,
         "http://localhost:5173",
-        "https://dgnomads-uhzz.vercel.app"
+        "https://dgnomads-uhzz.vercel.app",
+        "https://dashboard-deltaforce.vercel.app"
       ].filter(Boolean);
       
       // Allow requests with no origin (like mobile apps, curl requests, or local files)
