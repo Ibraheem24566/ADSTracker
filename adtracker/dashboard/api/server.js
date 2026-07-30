@@ -39,6 +39,7 @@ app.use(
 // Basic auth: this API exposes lead PII (names, emails, phones), so every
 // route below is gated. Fine for a single-operator dashboard; swap for
 // real per-user accounts if more than one person needs access.
+// Performance sync endpoint at /api/performance/sync for Google Ads integration
 function requireAuth(req, res, next) {
   const header = req.headers.authorization;
   if (!header || !header.startsWith("Basic ")) {
