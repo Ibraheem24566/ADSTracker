@@ -929,7 +929,7 @@ router.post("/bulk-update", upload.single('file'), async (req, res) => {
       const leadIds = batch.map(u => u.leadId);
       const statuses = batch.map(u => u.status);
       const conversionDates = batch.map(u => u.conversionDate);
-      const statusUpdatedDates = batch.map(u => u.statusUpdatedDate || null);
+      const statusUpdatedDates = batch.map(u => u.statusUpdatedDate);
       const disqualifiedReasons = batch.map(u => u.disqualifiedReason);
 
       const bulkUpdateQuery = `
@@ -950,8 +950,15 @@ router.post("/bulk-update", upload.single('file'), async (req, res) => {
         leadIds
       ];
 
-      await pool.query(bulkUpdateQuery, values);
-      updated += batch.length;
+      try {
+        await pool.query(bulkUpdateQuery, values);
+        updated += batch.length;
+      } catch (err) {
+        console.error('Bulk update error for batch:', err);
+        console.error('Query:', bulkUpdateQuery);
+        console.error('Values:', values);
+        throw err;
+      }
 
       // Add to updated details
       batch.forEach(u => {
