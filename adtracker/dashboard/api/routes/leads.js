@@ -886,9 +886,13 @@ router.post("/bulk-update", upload.single('file'), async (req, res) => {
         if (disqualifiedReason && lead.disqualified_reason !== disqualifiedReason) {
           changes.disqualified_reason = { from: lead.disqualified_reason, to: disqualifiedReason };
         }
+        // Always track status_updated_at if Converted Date is provided
+        if (row['Converted Date'] && lead.status_updated_at !== statusUpdatedDate) {
+          changes.status_updated_at = { from: lead.status_updated_at, to: statusUpdatedDate };
+        }
 
-        // Only update if there are actual changes
-        if (Object.keys(changes).length === 0) {
+        // Only update if there are actual changes OR if Converted Date is provided
+        if (Object.keys(changes).length === 0 && !row['Converted Date']) {
           continue;
         }
 
