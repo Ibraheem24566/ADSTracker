@@ -860,10 +860,14 @@ router.post("/bulk-update", upload.single('file'), async (req, res) => {
           ? parseExcelDate(row['Converted Date']) 
           : null;
 
-        // Get status updated date from Converted Date column
+        // Get status updated date from Converted Date column, fallback to Last Modified Date
         let statusUpdatedDate = new Date().toISOString();
-        if (row['Converted Date']) {
-          const parsedDate = parseExcelDate(row['Converted Date']);
+        let dateSource = row['Converted Date'];
+        if (!dateSource) {
+          dateSource = row['Last Modified Date'];
+        }
+        if (dateSource) {
+          const parsedDate = parseExcelDate(dateSource);
           if (parsedDate) {
             // Convert date string to full timestamp (midnight of that day)
             statusUpdatedDate = new Date(parsedDate + 'T00:00:00').toISOString();
@@ -914,6 +918,7 @@ router.post("/bulk-update", upload.single('file'), async (req, res) => {
     }
 
     // Process updates individually to avoid parameter type issues
+    let updated = 0;
     for (const update of updates) {
       try {
         const updateQuery = `
