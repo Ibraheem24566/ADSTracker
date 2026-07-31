@@ -28,13 +28,22 @@ $electricBill = trim($_POST['electric_bill'] ?? '');
 $roofShade = trim($_POST['roof_shade'] ?? '');
 $homeowner = trim($_POST['homeowner'] ?? '');
 
-// Collect URL tracking params from POST, fallback to GET parameters
-$keyword = trim($_POST['keyword'] ?? $_GET['kw'] ?? '');
-$crId = trim($_POST['cr_id'] ?? $_GET['crid'] ?? '');
-$gclid = trim($_POST['gclid'] ?? $_GET['gclid'] ?? '');
-$adId = trim($_POST['ad_id'] ?? $_GET['adid'] ?? '');
-$campaignId = trim($_POST['campaign_id'] ?? $_GET['campid'] ?? '');
-$adsetId = trim($_POST['adset_id'] ?? $_GET['adsetid'] ?? '');
+// Collect URL tracking params from POST, fallback to GET parameters from referer URL
+$refererUrl = $_SERVER['HTTP_REFERER'] ?? '';
+$refererParams = [];
+if ($refererUrl) {
+    $parsedUrl = parse_url($refererUrl);
+    if (isset($parsedUrl['query'])) {
+        parse_str($parsedUrl['query'], $refererParams);
+    }
+}
+
+$keyword = trim($_POST['keyword'] ?? $refererParams['kw'] ?? '');
+$crId = trim($_POST['cr_id'] ?? $refererParams['crid'] ?? '');
+$gclid = trim($_POST['gclid'] ?? $refererParams['gclid'] ?? '');
+$adId = trim($_POST['ad_id'] ?? $refererParams['adid'] ?? '');
+$campaignId = trim($_POST['campaign_id'] ?? $refererParams['campid'] ?? '');
+$adsetId = trim($_POST['adset_id'] ?? $refererParams['adsetid'] ?? '');
 
 // Validation
 $errors = [];
