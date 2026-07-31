@@ -181,7 +181,8 @@ $payload = [
 
 writeLog("POSTING LEAD: " . json_encode($payload));
 
-// Post to CRM endpoint
+// Post to CRM endpoint (COMMENTED OUT FOR TESTING)
+/*
 $ch = curl_init('https://alpha.clickpostcall.com/api/v1/post');
 curl_setopt_array($ch, [
     CURLOPT_POST => true,
@@ -204,6 +205,7 @@ if ($curlError) {
 } else {
     writeLog("CRM RESPONSE [$httpCode]: $response");
 }
+*/
 
 // Post to Dashboard API (isolated from CRM posting above — any failure here is only logged, never disrupts CRM or the redirect flow)
 try {
