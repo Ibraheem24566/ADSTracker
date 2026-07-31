@@ -42,6 +42,16 @@ pool.query(`
   }
 });
 
+// Add gclid column if it doesn't exist
+pool.query(`
+  ALTER TABLE leads 
+  ADD COLUMN IF NOT EXISTS gclid TEXT
+`).catch(err => {
+  if (err.code !== '42701') { // Ignore if column already exists
+    console.error('Failed to add gclid column:', err);
+  }
+});
+
 // Backfill status_updated_at for existing records that have NULL values
 pool.query(`
   UPDATE leads 
