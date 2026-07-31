@@ -262,7 +262,12 @@ try {
     if ($dashboardCurlError) {
         writeLog("DASHBOARD CURL ERROR (non-fatal, lead already sent to CRM): $dashboardCurlError");
     } elseif ($dashboardHttpCode >= 400) {
-        writeLog("DASHBOARD RESPONSE [$dashboardHttpCode] (non-fatal, lead already sent to CRM): $dashboardResponse");
+        $responseData = json_decode($dashboardResponse, true);
+        $logMsg = "DASHBOARD RESPONSE [$dashboardHttpCode] (non-fatal, lead already sent to CRM)";
+        if ($responseData && isset($responseData['id'])) {
+            $logMsg .= " - Lead ID: " . $responseData['id'];
+        }
+        writeLog($logMsg);
         
         // If foreign key error, retry without campaign_id and ad_group_id
         if ($dashboardHttpCode === 500 && strpos($dashboardResponse, 'foreign key constraint') !== false) {
@@ -294,11 +299,21 @@ try {
             if ($retryCurlError) {
                 writeLog("DASHBOARD RETRY CURL ERROR: $retryCurlError");
             } else {
-                writeLog("DASHBOARD RETRY RESPONSE [$retryHttpCode]: $retryResponse");
+                $retryData = json_decode($retryResponse, true);
+                $retryMsg = "DASHBOARD RETRY RESPONSE [$retryHttpCode]";
+                if ($retryData && isset($retryData['id'])) {
+                    $retryMsg .= " - Lead ID: " . $retryData['id'];
+                }
+                writeLog($retryMsg);
             }
         }
     } else {
-        writeLog("DASHBOARD RESPONSE [$dashboardHttpCode]: $dashboardResponse");
+        $responseData = json_decode($dashboardResponse, true);
+        $logMsg = "DASHBOARD RESPONSE [$dashboardHttpCode]";
+        if ($responseData && isset($responseData['id'])) {
+            $logMsg .= " - Lead ID: " . $responseData['id'];
+        }
+        writeLog($logMsg);
     }
 } catch (\Throwable $e) {
     // Catch-all: any unexpected error in dashboard posting is logged only, never disrupts CRM posting or the redirect below
