@@ -5,10 +5,12 @@ import { ArrowUpIcon, ArrowDownIcon } from "./icons";
 function todayMinus(days) {
   const d = new Date();
   d.setDate(d.getDate() - days);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  return d.toLocaleDateString('en-CA', {
+    timeZone: 'America/Los_Angeles',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
 }
 
 function fmtMoney(n) { return `$${Number(n).toFixed(2)}`; }

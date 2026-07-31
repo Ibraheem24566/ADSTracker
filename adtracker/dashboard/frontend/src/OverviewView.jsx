@@ -17,10 +17,12 @@ function fmtChange(current, previous) {
 function todayMinus(days) {
   const d = new Date();
   d.setDate(d.getDate() - days);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  return d.toLocaleDateString('en-CA', {
+    timeZone: 'America/Los_Angeles',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
 }
 
 const SEVERITY_LABEL = { high: "High", medium: "Medium", low: "Low" };
@@ -84,9 +86,9 @@ export default function OverviewView({ onSelectKeyword }) {
   }
 
   // Find best day for revenue
-  const bestDay = trend.length > 0 ? trend.reduce((best, day) => 
+  const bestDay = trend.length > 0 ? trend.reduce((best, day) =>
     (day.revenue || 0) > (best.revenue || 0) ? day : best, trend[0]) : null;
-  const bestDayName = bestDay ? new Date(bestDay.date).toLocaleDateString('en-US', { weekday: 'long' }) : '—';
+  const bestDayName = bestDay ? new Date(bestDay.date).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/Los_Angeles' }) : '—';
 
   return (
     <div>

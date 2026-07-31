@@ -9,6 +9,14 @@ function authHeader() {
 
 const STATUS_OPTIONS = ["Contacted", "Appointment Set", "Site Assessment", "Closed Won", "Closed Lost", "Disqualified"];
 
+// Format date in Pacific Time timezone
+function formatPacificDate(dateString) {
+  if (!dateString) return "—";
+  return new Date(dateString).toLocaleDateString('en-US', {
+    timeZone: 'America/Los_Angeles'
+  });
+}
+
 function formatMatchLabel(status) {
   return { matched: "Matched", no_match: "No match", no_tracking_data: "No tracking data", manual: "Manual" }[status] || status;
 }
@@ -46,10 +54,12 @@ function SortHeader({ id, label, sort, setSort, className }) {
 function todayMinus(days) {
   const d = new Date();
   d.setDate(d.getDate() - days);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  return d.toLocaleDateString('en-CA', {
+    timeZone: 'America/Los_Angeles',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
 }
 
 export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
@@ -184,10 +194,13 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
     const toLocalDateString = (timestamp) => {
       if (!timestamp) return "";
       const date = new Date(timestamp);
-      // Convert to local timezone and format as YYYY-MM-DD
-      return date.getFullYear() + '-' + 
-             String(date.getMonth() + 1).padStart(2, '0') + '-' + 
-             String(date.getDate()).padStart(2, '0');
+      // Convert to Pacific timezone and format as YYYY-MM-DD
+      return date.toLocaleDateString('en-CA', {
+        timeZone: 'America/Los_Angeles',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
     };
 
     setEditingLead({
@@ -375,7 +388,7 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
             <tbody>
               {sortedLeads.map((lead) => (
                 <tr key={lead.id} className={lead.match_status}>
-                  <td>{new Date(lead.created_at).toLocaleDateString()}</td>
+                  <td>{formatPacificDate(lead.created_at)}</td>
                   <td>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <div className="avatar">{initials(lead.name, lead.email)}</div>
@@ -416,8 +429,8 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                       Delete
                     </button>
                   </td>
-                  <td>{lead.conversion_date ? new Date(lead.conversion_date).toLocaleDateString() : "—"}</td>
-                  <td>{lead.status_updated_at ? new Date(lead.status_updated_at).toLocaleDateString() : "—"}</td>
+                  <td>{formatPacificDate(lead.conversion_date)}</td>
+                  <td>{formatPacificDate(lead.status_updated_at)}</td>
                   <td style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>{lead.gclid || "—"}</td>
                   <td>{lead.disqualified_reason || "—"}</td>
                 </tr>
@@ -517,7 +530,7 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                 <label>Created Date</label>
                 <input
                   type="date"
-                  value={newLead.created_at || new Date().toISOString().split('T')[0]}
+                  value={newLead.created_at || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })}
                   onChange={(e) => setNewLead({ ...newLead, created_at: e.target.value })}
                 />
               </div>
@@ -639,7 +652,7 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                 <label>Created Date</label>
                 <input
                   type="date"
-                  value={editingLead.created_at || new Date().toISOString().split('T')[0]}
+                  value={editingLead.created_at || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })}
                   onChange={(e) => setEditingLead({ ...editingLead, created_at: e.target.value })}
                 />
               </div>

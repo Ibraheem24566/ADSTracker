@@ -158,6 +158,13 @@ router.post("/sync", async (req, res) => {
     let adGroupsUpserted = 0;
     let keywordsUpserted = 0;
     let dailyStatsUpserted = 0;
+    let leadsAttributed = 0;
+    
+    // Collect all dates from the sync
+    const syncDates = new Set();
+    for (const row of rows) {
+      syncDates.add(row.stats.date);
+    }
     
     for (const row of rows) {
       // Upsert campaign
@@ -246,6 +253,51 @@ router.post("/sync", async (req, res) => {
       dailyStatsUpserted++;
     }
     
+    // Automatic attribution: match leads without keyword_id to daily_stats
+    for (const date of syncDates) {
+      // Find leads created on this date that have raw_keyword_text and campaign_id but no keyword_id
+      const unmatchedLeads = await client.query(
+        `SELECT id, raw_keyword_text, campaign_id, created_at
+         FROM leads
+         WHERE DATE(created_at) = $1
+         AND raw_keyword_text IS NOT NULL
+         AND raw_keyword_text != ''
+         AND campaign_id IS NOT NULL
+         AND keyword_id IS NULL`,
+        [date]
+      );
+      
+      for (const lead of unmatchedLeads.rows) {
+        // Try to match keyword from daily_stats
+        const keywordMatch = await client.query(
+          `SELECT ds.keyword_id, k.text, ds.ad_group_id
+           FROM daily_stats ds
+           JOIN keywords k ON ds.keyword_id = k.id
+           JOIN ad_groups ag ON k.ad_group_id = ag.id
+           WHERE ds.date = $1
+           AND ag.campaign_id = $2
+           AND LOWER(k.text) = LOWER($3)
+           LIMIT 1`,
+          [date, lead.campaign_id, lead.raw_keyword_text]
+        );
+        
+        if (keywordMatch.rows.length > 0) {
+          const match = keywordMatch.rows[0];
+          // Update lead with matched keyword attribution
+          await client.query(
+            `UPDATE leads
+             SET keyword_id = $1,
+                 ad_group_id = $2,
+                 match_status = 'matched',
+                 updated_at = NOW()
+             WHERE id = $3`,
+            [match.keyword_id, match.ad_group_id, lead.id]
+          );
+          leadsAttributed++;
+        }
+      }
+    }
+    
     await client.query("COMMIT");
     
     res.json({
@@ -253,7 +305,8 @@ router.post("/sync", async (req, res) => {
       campaigns_upserted: campaignsUpserted,
       ad_groups_upserted: adGroupsUpserted,
       keywords_upserted: keywordsUpserted,
-      daily_stats_upserted: dailyStatsUpserted
+      daily_stats_upserted: dailyStatsUpserted,
+      leads_attributed: leadsAttributed
     });
   } catch (err) {
     await client.query("ROLLBACK");

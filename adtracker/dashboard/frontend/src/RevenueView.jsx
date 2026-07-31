@@ -9,7 +9,12 @@ export default function RevenueView() {
   function todayMinus(days) {
     const d = new Date();
     d.setDate(d.getDate() - days);
-    return d.toISOString().slice(0, 10);
+    return d.toLocaleDateString('en-CA', {
+      timeZone: 'America/Los_Angeles',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
   }
 
   const load = useCallback(async () => {
