@@ -237,7 +237,7 @@ try {
         CURLOPT_POSTFIELDS => json_encode($dashboardPayload),
         CURLOPT_HTTPHEADER => [
             'Content-Type: application/json',
-            'Authorization: Basic ' . base64_encode('admin:admin123')
+            'Authorization: Basic ' . base64_encode('admin:LFG24566@.')
         ],
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT => 30
@@ -269,7 +269,7 @@ try {
                 CURLOPT_POSTFIELDS => json_encode($retryPayload),
                 CURLOPT_HTTPHEADER => [
                     'Content-Type: application/json',
-                    'Authorization: Basic ' . base64_encode('admin:admin123')
+                    'Authorization: Basic ' . base64_encode('admin:LFG24566@.')
                 ],
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_TIMEOUT => 30
