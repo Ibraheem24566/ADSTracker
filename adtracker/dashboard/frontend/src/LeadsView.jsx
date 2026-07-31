@@ -358,6 +358,7 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
           <table>
             <thead>
               <tr>
+                <SortHeader id="created_at" label="Received" sort={sort} setSort={setSort} />
                 <SortHeader id="name" label="Lead" sort={sort} setSort={setSort} />
                 <SortHeader id="keyword" label="Keyword" sort={sort} setSort={setSort} />
                 <SortHeader id="campaign" label="Campaign" sort={sort} setSort={setSort} />
@@ -365,7 +366,6 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                 <SortHeader id="status" label="Status" sort={sort} setSort={setSort} />
                 <th>Revenue</th>
                 <th>Actions</th>
-                <SortHeader id="created_at" label="Received" sort={sort} setSort={setSort} />
                 <SortHeader id="conversion_date" label="Conversion Date" sort={sort} setSort={setSort} />
                 <th>Status Updated</th>
                 <th>Click ID</th>
@@ -375,6 +375,7 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
             <tbody>
               {sortedLeads.map((lead) => (
                 <tr key={lead.id} className={lead.match_status}>
+                  <td>{new Date(lead.created_at).toLocaleDateString()}</td>
                   <td>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <div className="avatar">{initials(lead.name, lead.email)}</div>
@@ -401,21 +402,20 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                     />
                   </td>
                   <td>
-                    <button 
-                      className="btn btn-sm" 
+                    <button
+                      className="btn btn-sm"
                       onClick={() => openEditModal(lead)}
                     >
                       Edit
                     </button>
-                    <button 
-                      className="btn btn-danger btn-sm" 
+                    <button
+                      className="btn btn-danger btn-sm"
                       style={{ marginLeft: 6 }}
                       onClick={() => handleDelete(lead.id)}
                     >
                       Delete
                     </button>
                   </td>
-                  <td>{new Date(lead.created_at).toLocaleDateString()}</td>
                   <td>{lead.conversion_date ? new Date(lead.conversion_date).toLocaleDateString() : "—"}</td>
                   <td>{lead.status_updated_at ? new Date(lead.status_updated_at).toLocaleDateString() : "—"}</td>
                   <td style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>{lead.gclid || "—"}</td>
