@@ -9,9 +9,9 @@ function buildInsights({ current, previous, alerts, rejectionInsight, campaignRo
   if (previous.cost > 0) {
     const spendChange = ((current.cost - previous.cost) / previous.cost) * 100;
     if (Math.abs(spendChange) >= 10) {
-      const wittyMessages = spendChange > 0 
-        ? ["Money printer go brrr 🖨️", "Your wallet is getting lighter 💸", "Spend is having a moment ✨"]
-        : ["Your accountant will be pleased 📊", "Cha-ching! Savings detected 💰", "Budget breathing room found 🌬️"];
+      const wittyMessages = spendChange > 0
+        ? ["Money printer go brrr 🖨️", "Your wallet is crying 💸", "Google's shareholders thank you �", "Spend is on a rampage 🦖", "Your credit card called, it's scared 😱"]
+        : ["Your accountant just did a happy dance �", "Cha-ching! You found money under the couch 💰", "Budget breathing room found, go buy a coffee ☕", "Savings! Now you can afford that second yacht 🛥️"];
       insights.push({
         tone: spendChange > 0 ? "warn" : "good",
         icon: spendChange > 0 ? "🔥" : "💎",
@@ -25,8 +25,8 @@ function buildInsights({ current, previous, alerts, rejectionInsight, campaignRo
     const cplChange = ((current.cost_per_lead - previous.cost_per_lead) / previous.cost_per_lead) * 100;
     if (Math.abs(cplChange) >= 10) {
       const wittyMessages = cplChange > 0
-        ? ["Leads are getting fancy 💅", "CPL is living its best life 🎉", "Premium lead pricing activated ⭐"]
-        : ["Leads went on sale! 🏷️", "Your CPL is on a diet 🥗", "Budget-friendly leads unlocked 🎯"];
+        ? ["Leads are getting bougie 💅", "CPL is living its best life, unfortunately 🎉", "Premium lead pricing activated, enjoy the luxury ⭐", "Leads now come with a golden frame 🖼️"]
+        : ["Leads went on sale! Black Friday came early 🏷️", "Your CPL is on a diet, looking slim 🥗", "Budget-friendly leads unlocked, your wallet thanks you 🎯", "CPL dropped, time to celebrate with cheap pizza 🍕"];
       insights.push({
         tone: cplChange > 0 ? "bad" : "good",
         icon: cplChange > 0 ? "📈" : "📉",
@@ -42,10 +42,11 @@ function buildInsights({ current, previous, alerts, rejectionInsight, campaignRo
       const share = (top.lead_count / current.total_leads) * 100;
       if (share >= 30) {
         const wittyMessages = [
-          "The chosen one 🏆",
-          "MVP of the season 🌟",
-          "Carrying the team 💪",
-          "Lead magnet supreme 🧲"
+          "The chosen one, obviously 🏆",
+          "MVP of the season, no contest 🌟",
+          "Carrying the entire team, literally 💪",
+          "Lead magnet supreme, magnetic personality 🧲",
+          "The main character energy is strong here 🎬"
         ];
         insights.push({
           tone: "info",
@@ -60,10 +61,11 @@ function buildInsights({ current, previous, alerts, rejectionInsight, campaignRo
   const highAlert = alerts.find((a) => a.severity === "high");
   if (highAlert) {
     const wittyMessages = [
-      "This needs attention ASAP 🚨",
-      "Houston, we have a problem 🛸",
-      "Red alert! 🚩",
-      "Time to intervene ⏰"
+      "This needs attention like, right now 🚨",
+      "Houston, we have a problem, and it's not the aliens 🛸",
+      "Red alert! Put down the coffee and fix this 🚩",
+      "Time to intervene before things get spicy ⏰",
+      "Your campaigns are throwing a tantrum 🤬"
     ];
     insights.push({
       tone: "bad",
@@ -74,10 +76,11 @@ function buildInsights({ current, previous, alerts, rejectionInsight, campaignRo
   const mediumAlert = alerts.find((a) => a.severity === "medium");
   if (mediumAlert) {
     const wittyMessages = [
-      "Worth keeping an eye on 👁️",
-      "Not terrible, but not great either 🤷",
-      "Could be better, could be worse 🎭",
-      "Mild concern detected 🌡️"
+      "Worth keeping an eye on, but don't panic 👁️",
+      "Not terrible, but not great either, like a lukewarm coffee 🤷",
+      "Could be better, could be worse, could be pizza 🎭",
+      "Mild concern detected, nothing to lose sleep over 🌡️",
+      "It's giving... mixed energy 🤔"
     ];
     insights.push({
       tone: "warn",
@@ -91,10 +94,11 @@ function buildInsights({ current, previous, alerts, rejectionInsight, campaignRo
     const top = rejectionInsight.breakdown[0];
     const totalRejected = rejectionInsight.breakdown.reduce((s, r) => s + r.count, 0);
     const wittyMessages = [
-      "The usual suspect 🕵️",
-      "Public enemy #1 🎬",
-      "The crowd favorite 🎭",
-      "Rejection champion 🏅"
+      "The usual suspect, caught red-handed 🕵️",
+      "Public enemy #1, basically a villain 🎬",
+      "The crowd favorite, unfortunately 🎭",
+      "Rejection champion, wearing the crown proudly 🏅",
+      "The lead killer, striking again 🗡️"
     ];
     insights.push({
       tone: "warn",
@@ -109,13 +113,13 @@ function buildInsights({ current, previous, alerts, rejectionInsight, campaignRo
     const soldRate = (current.sold_leads / resolved) * 100;
     let wittyMessages, icon;
     if (soldRate >= 60) {
-      wittyMessages = ["Crushing it! 🚀", "Absolutely killing it 💪", "Performance mode activated ⚡", "On fire! 🔥"];
+      wittyMessages = ["Crushing it! Your sales team is unstoppable 🚀", "Absolutely killing it, like literally 💪", "Performance mode activated, where's the trophy ⚡", "On fire! Call the fire department 🔥", "Sales gods have blessed you 🙏"];
       icon = "🎉";
     } else if (soldRate >= 40) {
-      wittyMessages = ["Not bad, not bad 🤔", "Could go either way 🎲", "Middle of the road 🛣️", "Meh, it's okay 😐"];
+      wittyMessages = ["Not bad, not bad, could be worse 🤔", "Could go either way, like a coin toss 🎲", "Middle of the road, literally average 🛣️", "Meh, it's okay, I guess 😐", "It's fine, everything is fine 😅"];
       icon = "🤷";
     } else {
-      wittyMessages = ["Rough patch ahead 🌧️", "Needs some love ❤️‍🩹", "Room for improvement 📈", "Time to strategize 🧠"];
+      wittyMessages = ["Rough patch ahead, bring an umbrella 🌧️", "Needs some love, and maybe therapy ❤️‍🩹", "Room for improvement, lots of room 📈", "Time to strategize, or panic, your choice 🧠", "Not great, not terrible, just... concerning 😬"];
       icon = "😬";
     }
     insights.push({
@@ -133,11 +137,12 @@ export default function InsightsPanel({ current, previous, alerts, rejectionInsi
 
   if (insights.length === 0) {
     const emptyMessages = [
-      "Smooth sailing! 🌊 Nothing to worry about right now.",
-      "All clear! 🎉 Your campaigns are behaving nicely.",
-      "Boring is good! 😴 No drama detected in your data.",
-      "Peace and quiet 🧘 — enjoy the calm while it lasts!",
-      "No news is good news! 📰 Your campaigns are chill."
+      "Smooth sailing! Your campaigns are basically perfect 🌊",
+      "All clear! Your campaigns are behaving like angels 🎉",
+      "Boring is good! No drama detected, which is suspicious 😴",
+      "Peace and quiet 🧘 — enjoy the calm before the storm!",
+      "No news is good news! Your campaigns are chill, maybe too chill 📰",
+      "Nothing to report! Everything is running smoothly, shockingly 🤷"
     ];
     return <div className="empty-state">{emptyMessages[Math.floor(Math.random() * emptyMessages.length)]}</div>;
   }
