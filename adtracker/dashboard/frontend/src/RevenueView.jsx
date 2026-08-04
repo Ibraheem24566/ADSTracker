@@ -74,15 +74,16 @@ export default function RevenueView() {
   return (
     <div>
       <div className="filters">
-        <input 
-          type="date" 
-          value={range.from} 
-          onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))} 
+        <input
+          type="date"
+          value={range.from}
+          onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))}
         />
-        <input 
-          type="date" 
-          value={range.to} 
-          onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))} 
+        <span style={{ color: "var(--text-muted)" }}>to</span>
+        <input
+          type="date"
+          value={range.to}
+          onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))}
         />
       </div>
 

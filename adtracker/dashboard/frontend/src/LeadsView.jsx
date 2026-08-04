@@ -478,15 +478,16 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
           <option value="">All campaigns</option>
           {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
-        <input 
-          type="date" 
-          value={filters.from} 
-          onChange={(e) => setFilters((f) => ({ ...f, from: e.target.value }))} 
+        <input
+          type="date"
+          value={filters.from}
+          onChange={(e) => setFilters((f) => ({ ...f, from: e.target.value }))}
         />
-        <input 
-          type="date" 
-          value={filters.to} 
-          onChange={(e) => setFilters((f) => ({ ...f, to: e.target.value }))} 
+        <span style={{ color: "var(--text-muted)" }}>to</span>
+        <input
+          type="date"
+          value={filters.to}
+          onChange={(e) => setFilters((f) => ({ ...f, to: e.target.value }))}
         />
         <span className="spacer" />
         <button className="btn btn-primary btn-sm" onClick={() => setShowCreateModal(true)}>+ Add Lead</button>
