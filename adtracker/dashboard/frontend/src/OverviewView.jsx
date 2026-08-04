@@ -213,18 +213,6 @@ export default function OverviewView({ onSelectKeyword }) {
             <>
               <div className="section-heading fade-in">
                 <h3>Performance trend</h3>
-                <div className="pill-group">
-                  {METRIC_OPTIONS.map((m) => (
-                    <button
-                      key={m.key}
-                      className={`btn ${chartMetrics.includes(m.key) ? "active" : ""}`}
-                      onClick={() => toggleMetric(m.key)}
-                      style={chartMetrics.includes(m.key) ? { color: m.color } : undefined}
-                    >
-                      {m.label}
-                    </button>
-                  ))}
-                </div>
               </div>
               <div className="table-wrap fade-in" style={{ padding: 16, marginBottom: 24 }}>
                 <TrendChart
