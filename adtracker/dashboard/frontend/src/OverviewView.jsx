@@ -42,6 +42,12 @@ export default function OverviewView({ onSelectKeyword }) {
   const [chartMetrics, setChartMetrics] = useState(["revenue", "leads"]);
   const [campaigns, setCampaigns] = useState([]);
   const [selectedCampaign, setSelectedCampaign] = useState("");
+  const [datePreset, setDatePreset] = useState("7");
+
+  const handleDatePresetChange = (days) => {
+    setDatePreset(days);
+    setRange({ from: todayMinus(parseInt(days)), to: todayMinus(0) });
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -94,6 +100,15 @@ export default function OverviewView({ onSelectKeyword }) {
     <div>
       <div className="filters" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', gap: '8px' }}>
+          <select 
+            value={datePreset} 
+            onChange={(e) => handleDatePresetChange(e.target.value)}
+          >
+            <option value="7">Last 7 days</option>
+            <option value="14">Last 14 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+          </select>
           <input 
             type="date" 
             value={range.from} 
