@@ -107,8 +107,8 @@ export default function App() {
     <div className="app">
       <div className="header">
         <div className="header-left">
-          <div className="header-mark">AT</div>
-          <h1>Ad Tracker</h1>
+          <img src="/logo.png" alt="Ads HQ" className="header-logo" />
+          <h1><span className="ads-black">Ads</span> <span className="hq-blue">HQ</span></h1>
         </div>
         <div className="header-right">
           <button className="help-button" onClick={() => setShowHelp(true)} title="Help">
