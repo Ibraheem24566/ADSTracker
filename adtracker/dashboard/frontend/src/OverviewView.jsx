@@ -99,7 +99,7 @@ export default function OverviewView({ onSelectKeyword }) {
   return (
     <div>
       <div className="filters" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <select 
             value={datePreset} 
             onChange={(e) => handleDatePresetChange(e.target.value)}
@@ -114,7 +114,7 @@ export default function OverviewView({ onSelectKeyword }) {
             value={range.from}
             onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))}
           />
-          <span style={{ color: "var(--text-muted)", margin: '0 4px' }}>to</span>
+          <span style={{ color: "var(--text-muted)", margin: '0 4px', alignSelf: 'center' }}>to</span>
           <input
             type="date"
             value={range.to}
