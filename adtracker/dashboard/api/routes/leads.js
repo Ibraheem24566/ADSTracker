@@ -891,8 +891,8 @@ router.post("/bulk-update", upload.single('file'), async (req, res) => {
         if (dateSource) {
           const parsedDate = parseExcelDate(dateSource);
           if (parsedDate) {
-            // Convert date string to full timestamp (midnight of that day)
-            statusUpdatedDate = new Date(parsedDate + 'T00:00:00').toISOString();
+            // Convert date string to Pacific timezone timestamp (midnight Pacific)
+            statusUpdatedDate = parsedDate + 'T00:00:00-07:00';
           }
         }
 
@@ -918,9 +918,8 @@ router.post("/bulk-update", upload.single('file'), async (req, res) => {
           const existingDatePart = existingDateStr ? existingDateStr.split('T')[0] : null;
           const newDatePart = statusUpdatedDate.split('T')[0];
           console.log('Date comparison for', emailLower, '- Excel date:', dateSource, '-> Parsed:', newDatePart, '- DB date:', lead.status_updated_at, '-> Part:', existingDatePart);
-          if (existingDatePart !== newDatePart) {
-            changes.status_updated_at = { from: lead.status_updated_at, to: statusUpdatedDate };
-          }
+          // Always update status_updated_at if a date is provided in Excel
+          changes.status_updated_at = { from: lead.status_updated_at, to: statusUpdatedDate };
         }
 
         console.log('Lead:', emailLower, 'Changes:', changes);
