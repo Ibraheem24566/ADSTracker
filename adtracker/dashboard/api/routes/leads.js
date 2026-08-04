@@ -133,6 +133,9 @@ router.patch("/:id", async (req, res) => {
   for (const field of timestampFields) {
     if (req.body[field] === '') {
       req.body[field] = null;
+    } else if (req.body[field] && typeof req.body[field] === 'string' && req.body[field].match(/^\d{4}-\d{2}-\d{2}$/)) {
+      // Keep date string as-is, will be converted in SQL using AT TIME ZONE
+      // This ensures proper DST handling by PostgreSQL
     }
   }
 
@@ -168,8 +171,16 @@ router.patch("/:id", async (req, res) => {
     const setClauses = [];
     const params = [];
     for (const field of filteredUpdates) {
-      params.push(req.body[field]);
-      setClauses.push(`${field} = $${params.length}`);
+      // Handle date strings for timestamp fields - convert to Pacific timezone
+      if (timestampFields.includes(field) && req.body[field] && typeof req.body[field] === 'string' && req.body[field].match(/^\d{4}-\d{2}-\d{2}$/)) {
+        // Append PDT offset to treat date as Pacific timezone midnight
+        const pacificDate = req.body[field] + 'T00:00:00-07:00';
+        params.push(pacificDate);
+        setClauses.push(`${field} = $${params.length}::timestamp with time zone`);
+      } else {
+        params.push(req.body[field]);
+        setClauses.push(`${field} = $${params.length}`);
+      }
     }
 
     // Auto-set status_updated_at when status actually changes and field is blank/not provided

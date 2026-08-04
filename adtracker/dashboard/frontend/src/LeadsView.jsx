@@ -12,9 +12,11 @@ const STATUS_OPTIONS = ["Contacted", "Appointment Set", "Site Assessment", "Clos
 // Format date in Pacific Time timezone
 function formatPacificDate(dateString) {
   if (!dateString) return "—";
-  return new Date(dateString).toLocaleDateString('en-US', {
-    timeZone: 'America/Los_Angeles'
-  });
+  // The database stores in Pacific timezone, so we need to parse it correctly
+  const date = new Date(dateString);
+  // Get the date components in Pacific timezone
+  const options = { timeZone: 'America/Los_Angeles', year: 'numeric', month: 'numeric', day: 'numeric' };
+  return date.toLocaleDateString('en-US', options);
 }
 
 function formatMatchLabel(status) {
@@ -332,8 +334,13 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
   function openEditModal(lead) {
     const toLocalDateString = (dateStr) => {
       if (!dateStr) return "";
-      // Extract just the date part without timezone conversion
-      return dateStr.split('T')[0].split(' ')[0];
+      // Convert Pacific timezone date to local timezone for date input
+      const date = new Date(dateStr);
+      // Use local timezone to format as YYYY-MM-DD for date input
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
     };
 
     setEditingLead({
@@ -366,7 +373,10 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
         email: editingLead.email || null,
         first_name: editingLead.first_name || null,
         last_name: editingLead.last_name || null,
-        conversion_date: editingLead.conversion_date || null
+        conversion_date: editingLead.conversion_date || null,
+        status_updated_at: editingLead.status_updated_at && editingLead.status_updated_at.trim() !== "" 
+          ? editingLead.status_updated_at 
+          : null
       };
       
       // Handle raw_keyword_text - send empty string to trigger clear, otherwise use value or null
@@ -374,11 +384,6 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
         updateData.raw_keyword_text = '';
       } else {
         updateData.raw_keyword_text = editingLead.raw_keyword_text || null;
-      }
-      
-      // Only include status_updated_at if it's not blank (manual override)
-      if (editingLead.status_updated_at && editingLead.status_updated_at.trim() !== "") {
-        updateData.status_updated_at = editingLead.status_updated_at;
       }
       
       await updateLead(editingLead.id, updateData);
