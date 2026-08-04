@@ -4,18 +4,31 @@ import { getLeads, getPerformance, getCampaigns } from "./api";
 function StatusTooltip({ leads, position }) {
   if (!leads || leads.length === 0) return null;
 
-  const displayLeads = leads.slice(0, 10);
-  const remainingCount = leads.length - 10;
+  const displayLeads = leads.slice(0, 5);
+  const remainingCount = leads.length - 5;
+
+  // Format date in Pacific Time
+  function formatPacificDate(dateString) {
+    if (!dateString) return "—";
+    const date = new Date(dateString);
+    const options = { timeZone: 'America/Los_Angeles', year: 'numeric', month: 'numeric', day: 'numeric' };
+    return date.toLocaleDateString('en-US', options);
+  }
+
+  // Calculate position to avoid going below fold
+  const tooltipHeight = Math.min(displayLeads.length, 5) * 50 + 60; // Approximate height
+  const spaceBelow = window.innerHeight - position.top - position.height;
+  const showAbove = spaceBelow < tooltipHeight + 20;
 
   return (
     <div
       className="status-tooltip"
       style={{
-        position: 'absolute',
-        top: position.top + position.height + 8,
+        position: 'fixed',
+        top: showAbove ? position.top - tooltipHeight - 8 : position.top + position.height + 8,
         left: position.left,
         zIndex: 1000,
-        minWidth: '250px',
+        minWidth: '280px',
         maxWidth: '350px'
       }}
     >
@@ -29,16 +42,17 @@ function StatusTooltip({ leads, position }) {
       }}>
         {displayLeads.map((lead, index) => (
           <div key={index} style={{
-            padding: '6px 0',
+            padding: '8px 0',
             borderBottom: index < displayLeads.length - 1 ? '1px solid var(--border)' : 'none'
           }}>
-            <div style={{ fontWeight: 500, color: 'var(--text)' }}>{lead.name || 'Unknown'}</div>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{lead.email || 'No email'}</div>
+            <div style={{ fontWeight: 500, color: 'var(--text)', marginBottom: '2px' }}>{lead.name || 'Unknown'}</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '2px' }}>{lead.email || 'No email'}</div>
+            <div style={{ fontSize: '11px', color: 'var(--text-faint)' }}>Received: {formatPacificDate(lead.created_at)}</div>
           </div>
         ))}
         {remainingCount > 0 && (
           <div style={{
-            paddingTop: '6px',
+            paddingTop: '8px',
             fontSize: '12px',
             color: 'var(--text-muted)',
             fontStyle: 'italic'
