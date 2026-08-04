@@ -15,11 +15,6 @@ function StatusTooltip({ leads, position, onMouseEnter, onMouseLeave }) {
     return date.toLocaleDateString('en-US', options);
   }
 
-  // Calculate position to avoid going below fold
-  const tooltipHeight = Math.min(displayLeads.length, 5) * 50 + 60; // Approximate height
-  const spaceBelow = window.innerHeight - position.top - position.height;
-  const showAbove = spaceBelow < tooltipHeight + 20;
-
   return (
     <div
       className="status-tooltip"
@@ -27,8 +22,9 @@ function StatusTooltip({ leads, position, onMouseEnter, onMouseLeave }) {
       onMouseLeave={onMouseLeave}
       style={{
         position: 'fixed',
-        top: showAbove ? position.top - tooltipHeight - 8 : position.top + position.height + 8,
+        top: position.top - 8,
         left: position.left,
+        transform: 'translateY(-100%)',
         zIndex: 1000,
         minWidth: '280px',
         maxWidth: '350px'
