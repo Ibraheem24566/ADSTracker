@@ -114,7 +114,7 @@ export default function OverviewView({ onSelectKeyword }) {
             value={range.from}
             onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))}
           />
-          <span style={{ color: "var(--text-muted)" }}>to</span>
+          <span style={{ color: "var(--text-muted)", margin: '0 4px' }}>to</span>
           <input
             type="date"
             value={range.to}
