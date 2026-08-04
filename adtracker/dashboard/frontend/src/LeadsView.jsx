@@ -79,6 +79,145 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
   const [bulkUploadFile, setBulkUploadFile] = useState(null);
   const [bulkUploadResults, setBulkUploadResults] = useState(null);
   const [bulkUploadLoading, setBulkUploadLoading] = useState(false);
+  const [columnOrder, setColumnOrder] = useState(() => {
+    const saved = localStorage.getItem('leads_column_order');
+    return saved ? JSON.parse(saved) : ['created_at', 'name', 'keyword', 'campaign', 'attribution', 'status', 'revenue', 'actions', 'conversion_date', 'status_updated_at', 'gclid', 'disqualified_reason'];
+  });
+  const [draggedColumn, setDraggedColumn] = useState(null);
+
+  // Save column order to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('leads_column_order', JSON.stringify(columnOrder));
+  }, [columnOrder]);
+
+  const handleDragStart = (columnId) => {
+    setDraggedColumn(columnId);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (targetColumnId) => {
+    if (draggedColumn === targetColumnId) return;
+    
+    const newOrder = [...columnOrder];
+    const draggedIndex = newOrder.indexOf(draggedColumn);
+    const targetIndex = newOrder.indexOf(targetColumnId);
+    
+    newOrder.splice(draggedIndex, 1);
+    newOrder.splice(targetIndex, 0, draggedColumn);
+    
+    setColumnOrder(newOrder);
+    setDraggedColumn(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedColumn(null);
+  };
+
+  // Column configuration for rendering
+  const columnConfig = {
+    created_at: {
+      header: <SortHeader id="created_at" label="Received" sort={sort} setSort={setSort} />,
+      cell: (lead) => <td>{formatPacificDate(lead.created_at)}</td>,
+      draggable: true
+    },
+    name: {
+      header: <SortHeader id="name" label="Lead" sort={sort} setSort={setSort} />,
+      cell: (lead) => (
+        <td>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div className="avatar">{initials(lead.name, lead.email)}</div>
+            <div>
+              <div>{lead.name || "—"}</div>
+              <div style={{ color: "var(--text-muted)", fontSize: 12 }}>{lead.email}</div>
+            </div>
+          </div>
+        </td>
+      ),
+      draggable: true
+    },
+    keyword: {
+      header: <SortHeader id="keyword" label="Keyword" sort={sort} setSort={setSort} />,
+      cell: (lead) => <td>{lead.keyword_text || lead.raw_keyword_text || "—"}</td>,
+      draggable: true
+    },
+    campaign: {
+      header: <SortHeader id="campaign" label="Campaign" sort={sort} setSort={setSort} />,
+      cell: (lead) => <td>{lead.campaign_name || "—"}</td>,
+      draggable: true
+    },
+    attribution: {
+      header: <th>Attribution</th>,
+      cell: (lead) => <td><span className={`badge ${lead.match_status}`}>{formatMatchLabel(lead.match_status)}</span></td>,
+      draggable: true
+    },
+    status: {
+      header: <SortHeader id="status" label="Status" sort={sort} setSort={setSort} />,
+      cell: (lead) => <td>{lead.status || "—"}</td>,
+      draggable: true
+    },
+    revenue: {
+      header: <th>Revenue</th>,
+      cell: (lead) => (
+        <td className="num" style={{ minWidth: 100 }}>
+          <input
+            className="inline-edit value"
+            type="number"
+            step="0.01"
+            value={lead.revenue === null || lead.revenue === undefined ? "" : lead.revenue}
+            placeholder="0"
+            onChange={(e) => setLocalField(lead.id, "revenue", e.target.value)}
+            onBlur={(e) => commitField(lead.id, "revenue", e.target.value)}
+            style={{ width: "100%", minWidth: 80 }}
+          />
+        </td>
+      ),
+      draggable: true
+    },
+    actions: {
+      header: <th>Actions</th>,
+      cell: (lead) => (
+        <td>
+          <button
+            className="btn btn-sm"
+            onClick={() => openEditModal(lead)}
+          >
+            Edit
+          </button>
+          <button
+            className="btn btn-danger btn-sm"
+            style={{ marginLeft: 6 }}
+            onClick={() => handleDelete(lead.id)}
+          >
+            Delete
+          </button>
+        </td>
+      ),
+      draggable: false
+    },
+    conversion_date: {
+      header: <SortHeader id="conversion_date" label="Conversion Date" sort={sort} setSort={setSort} />,
+      cell: (lead) => <td>{formatPacificDate(lead.conversion_date)}</td>,
+      draggable: true
+    },
+    status_updated_at: {
+      header: <th>Status Updated</th>,
+      cell: (lead) => <td>{formatPacificDate(lead.status_updated_at)}</td>,
+      draggable: true
+    },
+    gclid: {
+      header: <th>Click ID</th>,
+      cell: (lead) => <td style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>{lead.gclid || "—"}</td>,
+      draggable: true
+    },
+    disqualified_reason: {
+      header: <th>Disqualified/Closed Lost Reason</th>,
+      cell: (lead) => <td>{lead.disqualified_reason || "—"}</td>,
+      draggable: true
+    }
+  };
 
   // combine manual filters with a keyword drill-down passed in from another tab
   const effectiveFilters = useMemo(
@@ -191,16 +330,10 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
   }
 
   function openEditModal(lead) {
-    const toLocalDateString = (timestamp) => {
-      if (!timestamp) return "";
-      const date = new Date(timestamp);
-      // Convert to Pacific timezone and format as YYYY-MM-DD
-      return date.toLocaleDateString('en-CA', {
-        timeZone: 'America/Los_Angeles',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      });
+    const toLocalDateString = (dateStr) => {
+      if (!dateStr) return "";
+      // Extract just the date part without timezone conversion
+      return dateStr.split('T')[0].split(' ')[0];
     };
 
     setEditingLead({
@@ -214,7 +347,6 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
       raw_keyword_text: lead.raw_keyword_text || "",
       gclid: lead.gclid || "",
       disqualified_reason: lead.disqualified_reason || "",
-      created_at: toLocalDateString(lead.created_at) || new Date().toISOString().split('T')[0],
       conversion_date: toLocalDateString(lead.conversion_date) || "",
       status_updated_at: toLocalDateString(lead.status_updated_at) || ""
     });
@@ -231,7 +363,9 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
         campaign_id: editingLead.campaign_id || null,
         gclid: editingLead.gclid || null,
         disqualified_reason: editingLead.disqualified_reason || null,
-        created_at: editingLead.created_at,
+        email: editingLead.email || null,
+        first_name: editingLead.first_name || null,
+        last_name: editingLead.last_name || null,
         conversion_date: editingLead.conversion_date || null
       };
       
@@ -371,68 +505,37 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
           <table>
             <thead>
               <tr>
-                <SortHeader id="created_at" label="Received" sort={sort} setSort={setSort} />
-                <SortHeader id="name" label="Lead" sort={sort} setSort={setSort} />
-                <SortHeader id="keyword" label="Keyword" sort={sort} setSort={setSort} />
-                <SortHeader id="campaign" label="Campaign" sort={sort} setSort={setSort} />
-                <th>Attribution</th>
-                <SortHeader id="status" label="Status" sort={sort} setSort={setSort} />
-                <th>Revenue</th>
-                <th>Actions</th>
-                <SortHeader id="conversion_date" label="Conversion Date" sort={sort} setSort={setSort} />
-                <th>Status Updated</th>
-                <th>Click ID</th>
-                <th>Disqualified/Closed Lost Reason</th>
+                {columnOrder.map((columnId) => {
+                  const config = columnConfig[columnId];
+                  if (!config) return null;
+                  return (
+                    <th
+                      key={columnId}
+                      draggable={config.draggable}
+                      onDragStart={() => handleDragStart(columnId)}
+                      onDragOver={handleDragOver}
+                      onDrop={() => handleDrop(columnId)}
+                      onDragEnd={handleDragEnd}
+                      style={{
+                        cursor: config.draggable ? 'grab' : 'default',
+                        opacity: draggedColumn === columnId ? 0.5 : 1,
+                        backgroundColor: draggedColumn === columnId ? '#f0f0f0' : 'inherit'
+                      }}
+                    >
+                      {config.header}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
               {sortedLeads.map((lead) => (
                 <tr key={lead.id} className={lead.match_status}>
-                  <td>{formatPacificDate(lead.created_at)}</td>
-                  <td>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div className="avatar">{initials(lead.name, lead.email)}</div>
-                      <div>
-                        <div>{lead.name || "—"}</div>
-                        <div style={{ color: "var(--text-muted)", fontSize: 12 }}>{lead.email}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td>{lead.keyword_text || lead.raw_keyword_text || "—"}</td>
-                  <td>{lead.campaign_name || "—"}</td>
-                  <td><span className={`badge ${lead.match_status}`}>{formatMatchLabel(lead.match_status)}</span></td>
-                  <td>{lead.status || "—"}</td>
-                  <td className="num" style={{ minWidth: 100 }}>
-                    <input
-                      className="inline-edit value"
-                      type="number"
-                      step="0.01"
-                      value={lead.revenue === null || lead.revenue === undefined ? "" : lead.revenue}
-                      placeholder="0"
-                      onChange={(e) => setLocalField(lead.id, "revenue", e.target.value)}
-                      onBlur={(e) => commitField(lead.id, "revenue", e.target.value)}
-                      style={{ width: "100%", minWidth: 80 }}
-                    />
-                  </td>
-                  <td>
-                    <button
-                      className="btn btn-sm"
-                      onClick={() => openEditModal(lead)}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      className="btn btn-danger btn-sm"
-                      style={{ marginLeft: 6 }}
-                      onClick={() => handleDelete(lead.id)}
-                    >
-                      Delete
-                    </button>
-                  </td>
-                  <td>{formatPacificDate(lead.conversion_date)}</td>
-                  <td>{formatPacificDate(lead.status_updated_at)}</td>
-                  <td style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>{lead.gclid || "—"}</td>
-                  <td>{lead.disqualified_reason || "—"}</td>
+                  {columnOrder.map((columnId) => {
+                    const config = columnConfig[columnId];
+                    if (!config) return null;
+                    return config.cell(lead);
+                  })}
                 </tr>
               ))}
             </tbody>
@@ -646,14 +749,6 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
                   value={editingLead.gclid || ""}
                   onChange={(e) => setEditingLead({ ...editingLead, gclid: e.target.value })}
                   placeholder="Google Click Identifier"
-                />
-              </div>
-              <div className="form-group">
-                <label>Created Date</label>
-                <input
-                  type="date"
-                  value={editingLead.created_at || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })}
-                  onChange={(e) => setEditingLead({ ...editingLead, created_at: e.target.value })}
                 />
               </div>
               <div className="form-group">

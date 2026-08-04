@@ -10,10 +10,12 @@ const IMPRESSION_SHARE_LOST_THRESHOLD = 20; // percent lost to budget before fla
 
 function dateNDaysAgo(n) {
   const d = new Date();
-  d.setDate(d.getDate() - n);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
+  // Convert to Pacific timezone before calculating days
+  const pacificDate = new Date(d.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+  pacificDate.setDate(pacificDate.getDate() - n);
+  const year = pacificDate.getFullYear();
+  const month = String(pacificDate.getMonth() + 1).padStart(2, '0');
+  const day = String(pacificDate.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
 
@@ -35,7 +37,7 @@ async function getPeriodTotals(from, to, campaignId = null) {
   const stats = rows[0];
   console.log('Overview stats:', stats);
 
-  const leadCampaignFilter = campaignId ? 'WHERE created_at::date BETWEEN $1 AND $2 AND campaign_id = $3::bigint' : 'WHERE created_at::date BETWEEN $1 AND $2';
+  const leadCampaignFilter = campaignId ? "WHERE (created_at AT TIME ZONE 'America/Los_Angeles')::date BETWEEN $1 AND $2 AND campaign_id = $3::bigint" : "WHERE (created_at AT TIME ZONE 'America/Los_Angeles')::date BETWEEN $1 AND $2";
   const leadCampaignParams = campaignId ? [from, to, campaignId] : [from, to];
 
   const { rows: leadRows } = await pool.query(
@@ -88,7 +90,7 @@ async function getTrend(from, to, campaignId = null) {
   const campaignFilter = campaignId ? 'WHERE ds.date BETWEEN $1 AND $2 AND ds.campaign_id = $3::bigint' : 'WHERE ds.date BETWEEN $1 AND $2';
   const campaignParams = campaignId ? [from, to, campaignId] : [from, to];
 
-  const leadCampaignFilter = campaignId ? 'WHERE created_at::date BETWEEN $1 AND $2 AND campaign_id = $3::bigint' : 'WHERE created_at::date BETWEEN $1 AND $2';
+  const leadCampaignFilter = campaignId ? "WHERE (created_at AT TIME ZONE 'America/Los_Angeles')::date BETWEEN $1 AND $2 AND campaign_id = $3::bigint" : "WHERE (created_at AT TIME ZONE 'America/Los_Angeles')::date BETWEEN $1 AND $2";
   const leadCampaignParams = campaignId ? [from, to, campaignId] : [from, to];
 
   const { rows } = await pool.query(
@@ -102,14 +104,14 @@ async function getTrend(from, to, campaignId = null) {
        COALESCE(lr.revenue_sum, 0) AS revenue
      FROM daily_stats ds
      LEFT JOIN (
-       SELECT created_at::date AS d, COUNT(*) AS lead_count
+       SELECT (created_at AT TIME ZONE 'America/Los_Angeles')::date AS d, COUNT(*) AS lead_count
        FROM leads ${leadCampaignFilter}
-       GROUP BY created_at::date
+       GROUP BY (created_at AT TIME ZONE 'America/Los_Angeles')::date
      ) lc ON lc.d = ds.date
      LEFT JOIN (
-       SELECT created_at::date AS d, COALESCE(SUM(revenue), 0) AS revenue_sum
+       SELECT (created_at AT TIME ZONE 'America/Los_Angeles')::date AS d, COALESCE(SUM(revenue), 0) AS revenue_sum
        FROM leads ${leadCampaignFilter}
-       GROUP BY created_at::date
+       GROUP BY (created_at AT TIME ZONE 'America/Los_Angeles')::date
      ) lr ON lr.d = ds.date
      ${campaignFilter}
      GROUP BY ds.date, lc.lead_count, lr.revenue_sum
@@ -146,7 +148,7 @@ async function getAlerts(from, to, campaignId = null) {
        FROM daily_stats ds
        JOIN keywords k ON k.id = ds.keyword_id
        JOIN campaigns c ON c.id = ds.campaign_id
-       LEFT JOIN leads l ON l.keyword_id = ds.keyword_id AND l.created_at::date BETWEEN $1 AND $2
+       LEFT JOIN leads l ON l.keyword_id = ds.keyword_id AND (l.created_at AT TIME ZONE 'America/Los_Angeles')::date BETWEEN $1 AND $2
        WHERE ds.date BETWEEN $1 AND $2 AND ds.campaign_id = $3::bigint
        GROUP BY k.id, k.text, c.name
        HAVING SUM(ds.cost_micros) / 1000000.0 > $4 AND COUNT(l.id) = 0
@@ -169,7 +171,7 @@ async function getAlerts(from, to, campaignId = null) {
       `SELECT
          SUM(ds.cost_micros) / NULLIF(COUNT(DISTINCT l.id), 0) AS avg_cost_per_lead_micros
        FROM daily_stats ds
-       LEFT JOIN leads l ON l.keyword_id = ds.keyword_id AND l.created_at::date BETWEEN $1 AND $2
+       LEFT JOIN leads l ON l.keyword_id = ds.keyword_id AND (l.created_at AT TIME ZONE 'America/Los_Angeles')::date BETWEEN $1 AND $2
        WHERE ds.date BETWEEN $1 AND $2 AND ds.campaign_id = $3::bigint`,
       [from, to, campaignId]
     );
@@ -184,7 +186,7 @@ async function getAlerts(from, to, campaignId = null) {
          FROM daily_stats ds
          JOIN keywords k ON k.id = ds.keyword_id
          JOIN campaigns c ON c.id = ds.campaign_id
-         LEFT JOIN leads l ON l.keyword_id = ds.keyword_id AND l.created_at::date BETWEEN $1 AND $2
+         LEFT JOIN leads l ON l.keyword_id = ds.keyword_id AND (l.created_at AT TIME ZONE 'America/Los_Angeles')::date BETWEEN $1 AND $2
          WHERE ds.date BETWEEN $1 AND $2 AND ds.campaign_id = $3::bigint
          GROUP BY k.id, k.text, c.name
          HAVING COUNT(DISTINCT l.id) > 0
@@ -235,7 +237,7 @@ async function getAlerts(from, to, campaignId = null) {
        FROM daily_stats ds
        JOIN keywords k ON k.id = ds.keyword_id
        JOIN campaigns c ON c.id = ds.campaign_id
-       LEFT JOIN leads l ON l.keyword_id = ds.keyword_id AND l.created_at::date BETWEEN $1 AND $2
+       LEFT JOIN leads l ON l.keyword_id = ds.keyword_id AND (l.created_at AT TIME ZONE 'America/Los_Angeles')::date BETWEEN $1 AND $2
        WHERE ds.date BETWEEN $1 AND $2
        GROUP BY k.id, k.text, c.name
        HAVING SUM(ds.cost_micros) / 1000000.0 > $3 AND COUNT(l.id) = 0
@@ -258,7 +260,7 @@ async function getAlerts(from, to, campaignId = null) {
       `SELECT
          SUM(ds.cost_micros) / NULLIF(COUNT(DISTINCT l.id), 0) AS avg_cost_per_lead_micros
        FROM daily_stats ds
-       LEFT JOIN leads l ON l.keyword_id = ds.keyword_id AND l.created_at::date BETWEEN $1 AND $2
+       LEFT JOIN leads l ON l.keyword_id = ds.keyword_id AND (l.created_at AT TIME ZONE 'America/Los_Angeles')::date BETWEEN $1 AND $2
        WHERE ds.date BETWEEN $1 AND $2`,
       [from, to]
     );
@@ -273,7 +275,7 @@ async function getAlerts(from, to, campaignId = null) {
          FROM daily_stats ds
          JOIN keywords k ON k.id = ds.keyword_id
          JOIN campaigns c ON c.id = ds.campaign_id
-         LEFT JOIN leads l ON l.keyword_id = ds.keyword_id AND l.created_at::date BETWEEN $1 AND $2
+         LEFT JOIN leads l ON l.keyword_id = ds.keyword_id AND (l.created_at AT TIME ZONE 'America/Los_Angeles')::date BETWEEN $1 AND $2
          WHERE ds.date BETWEEN $1 AND $2
          GROUP BY k.id, k.text, c.name
          HAVING COUNT(DISTINCT l.id) > 0
@@ -331,7 +333,7 @@ async function getRejectionInsight(from, to, campaignId = null) {
     `SELECT rejection_reason, COUNT(*) AS count
      FROM leads
      WHERE sold = false AND rejection_reason IS NOT NULL
-       AND created_at::date BETWEEN $1 AND $2 ${campaignFilter}
+       AND (created_at AT TIME ZONE 'America/Los_Angeles')::date BETWEEN $1 AND $2 ${campaignFilter}
      GROUP BY rejection_reason
      ORDER BY count DESC`,
     campaignParams
@@ -347,7 +349,7 @@ async function getRejectionInsight(from, to, campaignId = null) {
      FROM leads l
      JOIN keywords k ON k.id = l.keyword_id
      JOIN campaigns c ON c.id = l.campaign_id
-     WHERE l.created_at::date BETWEEN $1 AND $2 AND l.sold IS NOT NULL ${keywordCampaignFilter}
+     WHERE (l.created_at AT TIME ZONE 'America/Los_Angeles')::date BETWEEN $1 AND $2 AND l.sold IS NOT NULL ${keywordCampaignFilter}
      GROUP BY k.id, k.text, c.name
      HAVING COUNT(*) FILTER (WHERE l.sold = false) > 0
      ORDER BY COUNT(*) FILTER (WHERE l.sold = false) DESC

@@ -18,6 +18,7 @@ function fmtPct(n) { return `${(Number(n) * 100).toFixed(1)}%`; }
 
 const GROUP_OPTIONS = [
   { key: "keyword", label: "By keyword" },
+  { key: "ad_group", label: "By ad group" },
   { key: "campaign", label: "By campaign" },
   { key: "date", label: "By date" },
 ];
@@ -45,6 +46,163 @@ export default function PerformanceView({ onSelectKeyword }) {
   const [range, setRange] = useState({ from: todayMinus(7), to: todayMinus(0) });
   const [campaignId, setCampaignId] = useState("");
   const [sort, setSort] = useState({ key: "cost", dir: "desc" });
+  const [columnOrder, setColumnOrder] = useState(() => {
+    const saved = localStorage.getItem('performance_column_order');
+    const defaultOrder = ['label', 'campaign', 'campaign_id', 'ad_group_id', 'keyword_id', 'impressions', 'clicks', 'ctr', 'cost', 'avg_cpc', 'conversions', 'click_to_conversion_rate', 'lead_count', 'cost_per_lead', 'avg_impression_share', 'avg_quality_score'];
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Add new column if it doesn't exist in saved order
+      if (!parsed.includes('click_to_conversion_rate')) {
+        const conversionsIndex = parsed.indexOf('conversions');
+        if (conversionsIndex !== -1) {
+          parsed.splice(conversionsIndex + 1, 0, 'click_to_conversion_rate');
+        }
+      }
+      return parsed;
+    }
+    return defaultOrder;
+  });
+  const [draggedColumn, setDraggedColumn] = useState(null);
+
+  // Save column order to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('performance_column_order', JSON.stringify(columnOrder));
+  }, [columnOrder]);
+
+  const handleDragStart = (columnId) => {
+    setDraggedColumn(columnId);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (targetColumnId) => {
+    if (draggedColumn === targetColumnId) return;
+    
+    const newOrder = [...columnOrder];
+    const draggedIndex = newOrder.indexOf(draggedColumn);
+    const targetIndex = newOrder.indexOf(targetColumnId);
+    
+    newOrder.splice(draggedIndex, 1);
+    newOrder.splice(targetIndex, 0, draggedColumn);
+    
+    setColumnOrder(newOrder);
+    setDraggedColumn(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedColumn(null);
+  };
+
+  const labelKey = groupBy === "date" ? "date" : groupBy === "campaign" ? "campaign_name" : groupBy === "ad_group" ? "ad_group_name" : "keyword_text";
+
+  // Column configuration for rendering
+  const columnConfig = useMemo(() => ({
+    label: {
+      header: <SortHeader id={labelKey} label={groupBy === "date" ? "Date" : groupBy === "campaign" ? "Campaign" : groupBy === "ad_group" ? "Ad Group" : "Keyword"} sort={sort} setSort={setSort} />,
+      cell: (r) => (
+        <td
+          style={groupBy === "keyword" && onSelectKeyword ? { cursor: "pointer", textDecoration: "underline" } : undefined}
+          onClick={groupBy === "keyword" ? () => onSelectKeyword?.(r.keyword_id, r.keyword_text) : undefined}
+        >
+          {groupBy === "date" ? r.date : groupBy === "campaign" ? r.campaign_name : groupBy === "ad_group" ? r.ad_group_name : r.keyword_text}
+        </td>
+      ),
+      draggable: true,
+      visible: true
+    },
+    campaign: {
+      header: <th>Campaign</th>,
+      cell: (r) => <td>{r.campaign_name}</td>,
+      draggable: true,
+      visible: groupBy === "keyword" || groupBy === "ad_group"
+    },
+    campaign_id: {
+      header: <th style={{ fontSize: 11, color: "var(--text-muted)" }}>Campaign ID</th>,
+      cell: (r) => <td style={{ fontSize: 11, color: "var(--text-muted)" }}>{r.campaign_id}</td>,
+      draggable: true,
+      visible: groupBy !== "campaign"
+    },
+    ad_group_id: {
+      header: <th style={{ fontSize: 11, color: "var(--text-muted)" }}>Ad Group ID</th>,
+      cell: (r) => <td style={{ fontSize: 11, color: "var(--text-muted)" }}>{r.ad_group_id}</td>,
+      draggable: true,
+      visible: groupBy === "keyword"
+    },
+    keyword_id: {
+      header: <th style={{ fontSize: 11, color: "var(--text-muted)" }}>Keyword ID</th>,
+      cell: (r) => <td style={{ fontSize: 11, color: "var(--text-muted)" }}>{r.keyword_id}</td>,
+      draggable: true,
+      visible: groupBy === "keyword"
+    },
+    impressions: {
+      header: <SortHeader id="impressions" label="Impr." sort={sort} setSort={setSort} className="num" />,
+      cell: (r) => <td className="num">{r.impressions.toLocaleString()}</td>,
+      draggable: true,
+      visible: true
+    },
+    clicks: {
+      header: <SortHeader id="clicks" label="Clicks" sort={sort} setSort={setSort} className="num" />,
+      cell: (r) => <td className="num">{r.clicks.toLocaleString()}</td>,
+      draggable: true,
+      visible: true
+    },
+    ctr: {
+      header: <SortHeader id="ctr" label="CTR" sort={sort} setSort={setSort} className="num" />,
+      cell: (r) => <td className="num">{fmtPct(r.ctr)}</td>,
+      draggable: true,
+      visible: true
+    },
+    cost: {
+      header: <SortHeader id="cost" label="Cost" sort={sort} setSort={setSort} className="num" />,
+      cell: (r) => <td className="num">{fmtMoney(r.cost)}</td>,
+      draggable: true,
+      visible: true
+    },
+    avg_cpc: {
+      header: <SortHeader id="avg_cpc" label="Avg CPC" sort={sort} setSort={setSort} className="num" />,
+      cell: (r) => <td className="num">{fmtMoney(r.avg_cpc)}</td>,
+      draggable: true,
+      visible: true
+    },
+    conversions: {
+      header: <SortHeader id="conversions" label="Conversions" sort={sort} setSort={setSort} className="num" />,
+      cell: (r) => <td className="num">{r.conversions.toFixed(1)}</td>,
+      draggable: true,
+      visible: true
+    },
+    click_to_conversion_rate: {
+      header: <SortHeader id="click_to_conversion_rate" label="Click → Conv. Rate" sort={sort} setSort={setSort} className="num" />,
+      cell: (r) => <td className="num">{fmtPct(r.click_to_conversion_rate)}</td>,
+      draggable: true,
+      visible: true
+    },
+    lead_count: {
+      header: <SortHeader id="lead_count" label="Leads" sort={sort} setSort={setSort} className="num" />,
+      cell: (r) => <td className="num">{r.lead_count}</td>,
+      draggable: true,
+      visible: true
+    },
+    cost_per_lead: {
+      header: <SortHeader id="cost_per_lead" label="Cost / Lead" sort={sort} setSort={setSort} className="num" />,
+      cell: (r) => <td className="num">{r.cost_per_lead !== null ? fmtMoney(r.cost_per_lead) : "—"}</td>,
+      draggable: true,
+      visible: true
+    },
+    avg_impression_share: {
+      header: <SortHeader id="avg_impression_share" label="Impr. Share" sort={sort} setSort={setSort} className="num" />,
+      cell: (r) => <td className="num">{r.avg_impression_share !== null ? `${r.avg_impression_share.toFixed(1)}%` : "—"}</td>,
+      draggable: true,
+      visible: true
+    },
+    avg_quality_score: {
+      header: <SortHeader id="avg_quality_score" label="Quality" sort={sort} setSort={setSort} className="num" />,
+      cell: (r) => <td className="num">{r.avg_quality_score !== null ? r.avg_quality_score.toFixed(1) : "—"}</td>,
+      draggable: true,
+      visible: true
+    }
+  }), [labelKey, groupBy, sort, setSort, onSelectKeyword]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -73,7 +231,6 @@ export default function PerformanceView({ onSelectKeyword }) {
     { impressions: 0, clicks: 0, cost: 0, conversions: 0, lead_count: 0 }
   );
 
-  const labelKey = groupBy === "date" ? "date" : groupBy === "campaign" ? "campaign_name" : "keyword_text";
   const sortedRows = useMemo(() => {
     const copy = [...rows];
     copy.sort((a, b) => {
@@ -123,46 +280,37 @@ export default function PerformanceView({ onSelectKeyword }) {
           <table>
             <thead>
               <tr>
-                <SortHeader id={labelKey} label={groupBy === "date" ? "Date" : groupBy === "campaign" ? "Campaign" : "Keyword"} sort={sort} setSort={setSort} />
-                {groupBy === "keyword" && <th>Campaign</th>}
-                {groupBy !== "campaign" && <th>Campaign ID</th>}
-                {groupBy === "keyword" && <th>Ad Group ID</th>}
-                {groupBy === "keyword" && <th>Keyword ID</th>}
-                <SortHeader id="impressions" label="Impr." sort={sort} setSort={setSort} className="num" />
-                <SortHeader id="clicks" label="Clicks" sort={sort} setSort={setSort} className="num" />
-                <SortHeader id="ctr" label="CTR" sort={sort} setSort={setSort} className="num" />
-                <SortHeader id="cost" label="Cost" sort={sort} setSort={setSort} className="num" />
-                <SortHeader id="avg_cpc" label="Avg CPC" sort={sort} setSort={setSort} className="num" />
-                <SortHeader id="conversions" label="Conversions" sort={sort} setSort={setSort} className="num" />
-                <SortHeader id="lead_count" label="Leads" sort={sort} setSort={setSort} className="num" />
-                <SortHeader id="cost_per_lead" label="Cost / Lead" sort={sort} setSort={setSort} className="num" />
-                <SortHeader id="avg_impression_share" label="Impr. Share" sort={sort} setSort={setSort} className="num" />
-                <SortHeader id="avg_quality_score" label="Quality" sort={sort} setSort={setSort} className="num" />
+                {columnOrder.map((columnId) => {
+                  const config = columnConfig[columnId];
+                  if (!config || !config.visible) return null;
+                  return (
+                    <th
+                      key={columnId}
+                      draggable={config.draggable}
+                      onDragStart={() => handleDragStart(columnId)}
+                      onDragOver={handleDragOver}
+                      onDrop={() => handleDrop(columnId)}
+                      onDragEnd={handleDragEnd}
+                      style={{
+                        cursor: config.draggable ? 'grab' : 'default',
+                        opacity: draggedColumn === columnId ? 0.5 : 1,
+                        backgroundColor: draggedColumn === columnId ? '#f0f0f0' : 'inherit'
+                      }}
+                    >
+                      {config.header}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
               {sortedRows.map((r, i) => (
                 <tr key={i}>
-                  <td
-                    style={groupBy === "keyword" && onSelectKeyword ? { cursor: "pointer", textDecoration: "underline" } : undefined}
-                    onClick={groupBy === "keyword" ? () => onSelectKeyword?.(r.keyword_id, r.keyword_text) : undefined}
-                  >
-                    {groupBy === "date" ? r.date : groupBy === "campaign" ? r.campaign_name : r.keyword_text}
-                  </td>
-                  {groupBy === "keyword" && <td>{r.campaign_name}</td>}
-                  {groupBy !== "campaign" && <td style={{ fontSize: 11, color: "var(--text-muted)" }}>{r.campaign_id}</td>}
-                  {groupBy === "keyword" && <td style={{ fontSize: 11, color: "var(--text-muted)" }}>{r.ad_group_id}</td>}
-                  {groupBy === "keyword" && <td style={{ fontSize: 11, color: "var(--text-muted)" }}>{r.keyword_id}</td>}
-                  <td className="num">{r.impressions.toLocaleString()}</td>
-                  <td className="num">{r.clicks.toLocaleString()}</td>
-                  <td className="num">{fmtPct(r.ctr)}</td>
-                  <td className="num">{fmtMoney(r.cost)}</td>
-                  <td className="num">{fmtMoney(r.avg_cpc)}</td>
-                  <td className="num">{r.conversions.toFixed(1)}</td>
-                  <td className="num">{r.lead_count}</td>
-                  <td className="num">{r.cost_per_lead !== null ? fmtMoney(r.cost_per_lead) : "—"}</td>
-                  <td className="num">{r.avg_impression_share !== null ? `${r.avg_impression_share.toFixed(1)}%` : "—"}</td>
-                  <td className="num">{r.avg_quality_score !== null ? r.avg_quality_score.toFixed(1) : "—"}</td>
+                  {columnOrder.map((columnId) => {
+                    const config = columnConfig[columnId];
+                    if (!config || !config.visible) return null;
+                    return config.cell(r);
+                  })}
                 </tr>
               ))}
             </tbody>

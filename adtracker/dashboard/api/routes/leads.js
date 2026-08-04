@@ -61,7 +61,7 @@ pool.query(`
   console.error('Failed to backfill status_updated_at:', err);
 });
 
-const EDITABLE_FIELDS = ["status", "value", "revenue", "campaign_id", "raw_keyword_text", "gclid", "disqualified_reason", "created_at", "conversion_date", "status_updated_at"];
+const EDITABLE_FIELDS = ["status", "value", "revenue", "campaign_id", "raw_keyword_text", "gclid", "disqualified_reason", "email", "first_name", "last_name", "phone", "full_address", "zip_code", "conversion_date", "status_updated_at"];
 
 // GET /api/leads?status=&campaign_id=&from=&to=&search=
 router.get("/", async (req, res) => {
@@ -83,11 +83,11 @@ router.get("/", async (req, res) => {
   }
   if (from) {
     params.push(from);
-    conditions.push(`DATE(l.created_at) >= $${params.length}`);
+    conditions.push(`DATE(l.created_at AT TIME ZONE 'America/Los_Angeles') >= $${params.length}`);
   }
   if (to) {
     params.push(to);
-    conditions.push(`DATE(l.created_at) <= $${params.length}`);
+    conditions.push(`DATE(l.created_at AT TIME ZONE 'America/Los_Angeles') <= $${params.length}`);
   }
   if (search) {
     params.push(`%${search}%`);
@@ -174,6 +174,7 @@ router.patch("/:id", async (req, res) => {
 
     // Auto-set status_updated_at when status actually changes and field is blank/not provided
     if (filteredUpdates.includes('status') && !filteredUpdates.includes('status_updated_at') && req.body.status !== existing.status) {
+      console.log('Auto-setting status_updated_at for lead:', id, 'status change:', existing.status, '->', req.body.status);
       params.push(new Date().toISOString());
       setClauses.push(`status_updated_at = $${params.length}`);
     }
@@ -816,26 +817,26 @@ router.post("/bulk-update", upload.single('file'), async (req, res) => {
       'Pre-Sale Qualification': 'Appointment Set'
     };
 
-    // Extract all emails from Excel file
+    // Extract all emails from Excel file (trim and lowercase)
     const emails = data
       .map(row => row['Email'])
       .filter(email => email)
-      .map(email => email.toLowerCase());
+      .map(email => email.trim().toLowerCase());
 
     if (emails.length === 0) {
       return res.status(400).json({ error: "No valid emails found in file" });
     }
 
-    // Fetch all existing leads in one query
+    // Fetch all existing leads in one query (case-insensitive match)
     const leadsResult = await pool.query(
-      'SELECT id, email, first_name, last_name, status, conversion_date, disqualified_reason FROM leads WHERE email = ANY($1)',
+      'SELECT id, email, first_name, last_name, status, conversion_date, disqualified_reason, status_updated_at FROM leads WHERE LOWER(TRIM(email)) = ANY($1)',
       [emails]
     );
 
     // Create email-to-lead map for fast lookup
     const leadMap = {};
     leadsResult.rows.forEach(lead => {
-      leadMap[lead.email.toLowerCase()] = lead;
+      leadMap[lead.email.trim().toLowerCase()] = lead;
     });
 
     // Process Excel data and prepare updates
@@ -871,7 +872,7 @@ router.post("/bulk-update", upload.single('file'), async (req, res) => {
           : null;
 
         // Get status updated date from Converted Date column, fallback to Last Modified Date
-        let statusUpdatedDate = new Date().toISOString();
+        let statusUpdatedDate = null;
         let dateSource = row['Converted Date'];
         if (!dateSource) {
           dateSource = row['Last Modified Date'];
@@ -889,7 +890,7 @@ router.post("/bulk-update", upload.single('file'), async (req, res) => {
                                   row['Closed Lost Reason'] || 
                                   row['Disqualified Reason'] || null;
 
-        // Track what's changing
+        // Track what's changing - compare date parts only, not full timestamps
         const changes = {};
         if (lead.status !== dashboardStatus) {
           changes.status = { from: lead.status, to: dashboardStatus };
@@ -900,13 +901,22 @@ router.post("/bulk-update", upload.single('file'), async (req, res) => {
         if (disqualifiedReason && lead.disqualified_reason !== disqualifiedReason) {
           changes.disqualified_reason = { from: lead.disqualified_reason, to: disqualifiedReason };
         }
-        // Always track status_updated_at if Converted Date or Last Modified Date is provided
-        if ((row['Converted Date'] || row['Last Modified Date']) && lead.status_updated_at !== statusUpdatedDate) {
-          changes.status_updated_at = { from: lead.status_updated_at, to: statusUpdatedDate };
+        // Only track status_updated_at if date part actually differs
+        if (statusUpdatedDate) {
+          const existingDateStr = lead.status_updated_at ? new Date(lead.status_updated_at).toISOString() : null;
+          const existingDatePart = existingDateStr ? existingDateStr.split('T')[0] : null;
+          const newDatePart = statusUpdatedDate.split('T')[0];
+          console.log('Date comparison for', emailLower, '- Excel date:', dateSource, '-> Parsed:', newDatePart, '- DB date:', lead.status_updated_at, '-> Part:', existingDatePart);
+          if (existingDatePart !== newDatePart) {
+            changes.status_updated_at = { from: lead.status_updated_at, to: statusUpdatedDate };
+          }
         }
 
-        // Only update if there are actual changes OR if Converted Date or Last Modified Date is provided
-        if (Object.keys(changes).length === 0 && !row['Converted Date'] && !row['Last Modified Date']) {
+        console.log('Lead:', emailLower, 'Changes:', changes);
+
+        // Only update if there are actual changes
+        if (Object.keys(changes).length === 0) {
+          console.log('Skipping lead (no changes):', emailLower);
           continue;
         }
 
@@ -931,24 +941,42 @@ router.post("/bulk-update", upload.single('file'), async (req, res) => {
     let updated = 0;
     for (const update of updates) {
       try {
+        // Build dynamic update query based on what actually changed
+        const setClauses = [];
+        const queryParams = [];
+        let paramIndex = 1;
+
+        if (update.changes.status) {
+          setClauses.push(`status = $${paramIndex++}`);
+          queryParams.push(update.status);
+        }
+        if (update.changes.conversion_date) {
+          setClauses.push(`conversion_date = $${paramIndex++}`);
+          queryParams.push(update.conversionDate);
+        }
+        if (update.changes.status_updated_at) {
+          setClauses.push(`status_updated_at = $${paramIndex++}`);
+          queryParams.push(update.statusUpdatedDate);
+        }
+        if (update.changes.disqualified_reason) {
+          setClauses.push(`disqualified_reason = $${paramIndex++}`);
+          queryParams.push(update.disqualifiedReason);
+        }
+
+        // Skip if nothing to update
+        if (setClauses.length === 0) {
+          continue;
+        }
+
         const updateQuery = `
-          UPDATE leads 
-          SET 
-            status = $1,
-            conversion_date = $2,
-            status_updated_at = $3,
-            disqualified_reason = $4
-          WHERE id = $5
+          UPDATE leads
+          SET ${setClauses.join(', ')}
+          WHERE id = $${paramIndex}
         `;
-        
-        await pool.query(updateQuery, [
-          update.status,
-          update.conversionDate,
-          update.statusUpdatedDate,
-          update.disqualifiedReason,
-          update.leadId
-        ]);
-        
+        queryParams.push(update.leadId);
+
+        await pool.query(updateQuery, queryParams);
+
         updated++;
         
         // Add to updated details

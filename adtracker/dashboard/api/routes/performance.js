@@ -21,6 +21,8 @@ function withDerivedMetrics(row) {
     ctr: impressions > 0 ? clicks / impressions : 0,
     avg_cpc: clicks > 0 ? costMicros / 1_000_000 / clicks : 0,
     conversion_rate: clicks > 0 ? conversions / clicks : 0,
+    // Click to conversion rate (landing page conversion rate) = leads / clicks
+    click_to_conversion_rate: clicks > 0 ? leadCount / clicks : 0,
     // Cost per conversion based on actual lead count, not Google conversions
     cost_per_conversion: leadCount > 0 ? costMicros / 1_000_000 / leadCount : null,
     // Cost per *actual lead in our system*, not just Google's conversion count --
@@ -34,7 +36,7 @@ function withDerivedMetrics(row) {
   };
 }
 
-// GET /api/performance?from=&to=&group_by=keyword|campaign|date&campaign_id=
+// GET /api/performance?from=&to=&group_by=keyword|ad_group|campaign|date&campaign_id=
 router.get("/", async (req, res) => {
   const { from, to, campaign_id } = req.query;
   const groupBy = req.query.group_by || "keyword";
@@ -66,19 +68,47 @@ router.get("/", async (req, res) => {
         SUM(ds.all_conversions) AS all_conversions,
         AVG(ds.search_impression_share) AS avg_impression_share,
         AVG(ds.quality_score) AS avg_quality_score,
-        COALESCE(lead_counts.lead_count, 0) AS lead_count
+        COALESCE(SUM(lead_counts.lead_count), 0) AS lead_count
       FROM daily_stats ds
       JOIN keywords k ON k.id = ds.keyword_id
       JOIN ad_groups ag ON ag.id = ds.ad_group_id
       JOIN campaigns c ON c.id = ds.campaign_id
       LEFT JOIN (
-        SELECT keyword_id, COUNT(*) AS lead_count
-        FROM leads
-        WHERE keyword_id IS NOT NULL AND created_at::date BETWEEN $1 AND $2
-        GROUP BY keyword_id
-      ) lead_counts ON lead_counts.keyword_id = k.id
+        SELECT l.keyword_id, (l.created_at AT TIME ZONE 'America/Los_Angeles')::date AS lead_date, COUNT(*) AS lead_count
+        FROM leads l
+        WHERE l.keyword_id IS NOT NULL
+          AND (l.created_at AT TIME ZONE 'America/Los_Angeles')::date BETWEEN $1 AND $2
+        GROUP BY l.keyword_id, (l.created_at AT TIME ZONE 'America/Los_Angeles')::date
+      ) lead_counts ON lead_counts.keyword_id = k.id AND lead_counts.lead_date = ds.date
       WHERE ds.date BETWEEN $1 AND $2 ${campaignFilter}
-      GROUP BY k.id, k.text, ag.id, ag.name, c.id, c.name, lead_counts.lead_count
+      GROUP BY k.id, k.text, ag.id, ag.name, c.id, c.name
+      ORDER BY cost_micros DESC
+    `;
+  } else if (groupBy === "ad_group") {
+    query = `
+      SELECT
+        ag.id AS ad_group_id, ag.name AS ad_group_name,
+        c.id AS campaign_id, c.name AS campaign_name,
+        SUM(ds.impressions) AS impressions,
+        SUM(ds.clicks) AS clicks,
+        SUM(ds.cost_micros) AS cost_micros,
+        SUM(ds.conversions) AS conversions,
+        SUM(ds.all_conversions) AS all_conversions,
+        AVG(ds.search_impression_share) AS avg_impression_share,
+        AVG(ds.quality_score) AS avg_quality_score,
+        COALESCE(SUM(lead_counts.lead_count), 0) AS lead_count
+      FROM daily_stats ds
+      JOIN ad_groups ag ON ag.id = ds.ad_group_id
+      JOIN campaigns c ON c.id = ds.campaign_id
+      LEFT JOIN (
+        SELECT l.keyword_id, (l.created_at AT TIME ZONE 'America/Los_Angeles')::date AS lead_date, COUNT(*) AS lead_count
+        FROM leads l
+        WHERE l.keyword_id IS NOT NULL
+          AND (l.created_at AT TIME ZONE 'America/Los_Angeles')::date BETWEEN $1 AND $2
+        GROUP BY l.keyword_id, (l.created_at AT TIME ZONE 'America/Los_Angeles')::date
+      ) lead_counts ON lead_counts.keyword_id = ds.keyword_id AND lead_counts.lead_date = ds.date
+      WHERE ds.date BETWEEN $1 AND $2 ${campaignFilter}
+      GROUP BY ag.id, ag.name, c.id, c.name
       ORDER BY cost_micros DESC
     `;
   } else if (groupBy === "campaign") {
@@ -92,17 +122,18 @@ router.get("/", async (req, res) => {
         SUM(ds.all_conversions) AS all_conversions,
         AVG(ds.search_impression_share) AS avg_impression_share,
         AVG(ds.quality_score) AS avg_quality_score,
-        COALESCE(lead_counts.lead_count, 0) AS lead_count
+        COALESCE(SUM(lead_counts.lead_count), 0) AS lead_count
       FROM daily_stats ds
       JOIN campaigns c ON c.id = ds.campaign_id
       LEFT JOIN (
-        SELECT campaign_id, COUNT(*) AS lead_count
-        FROM leads
-        WHERE campaign_id IS NOT NULL AND created_at::date BETWEEN $1 AND $2
-        GROUP BY campaign_id
-      ) lead_counts ON lead_counts.campaign_id = c.id
+        SELECT l.keyword_id, (l.created_at AT TIME ZONE 'America/Los_Angeles')::date AS lead_date, COUNT(*) AS lead_count
+        FROM leads l
+        WHERE l.keyword_id IS NOT NULL
+          AND (l.created_at AT TIME ZONE 'America/Los_Angeles')::date BETWEEN $1 AND $2
+        GROUP BY l.keyword_id, (l.created_at AT TIME ZONE 'America/Los_Angeles')::date
+      ) lead_counts ON lead_counts.keyword_id = ds.keyword_id AND lead_counts.lead_date = ds.date
       WHERE ds.date BETWEEN $1 AND $2 ${campaignFilter}
-      GROUP BY c.id, c.name, lead_counts.lead_count
+      GROUP BY c.id, c.name
       ORDER BY cost_micros DESC
     `;
   } else if (groupBy === "date") {
@@ -119,17 +150,17 @@ router.get("/", async (req, res) => {
         COALESCE(lead_counts.lead_count, 0) AS lead_count
       FROM daily_stats ds
       LEFT JOIN (
-        SELECT TO_CHAR(created_at::date, 'YYYY-MM-DD') AS lead_date, COUNT(*) AS lead_count
-        FROM leads
-        WHERE created_at::date BETWEEN $1 AND $2
-        GROUP BY created_at::date
+        SELECT TO_CHAR((l.created_at AT TIME ZONE 'America/Los_Angeles')::date, 'YYYY-MM-DD') AS lead_date, COUNT(*) AS lead_count
+        FROM leads l
+        WHERE (l.created_at AT TIME ZONE 'America/Los_Angeles')::date BETWEEN $1 AND $2
+        GROUP BY (l.created_at AT TIME ZONE 'America/Los_Angeles')::date
       ) lead_counts ON lead_counts.lead_date = TO_CHAR(ds.date, 'YYYY-MM-DD')
       WHERE ds.date BETWEEN $1 AND $2 ${campaignFilter}
       GROUP BY TO_CHAR(ds.date, 'YYYY-MM-DD'), lead_counts.lead_count
       ORDER BY TO_CHAR(ds.date, 'YYYY-MM-DD') ASC
     `;
   } else {
-    return res.status(400).json({ error: "group_by must be one of: keyword, campaign, date" });
+    return res.status(400).json({ error: "group_by must be one of: keyword, ad_group, campaign, date" });
   }
 
   try {
