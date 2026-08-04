@@ -5,52 +5,6 @@ import StatCard from "./StatCard";
 import InsightsPanel from "./InsightsPanel";
 import RecentActivity from "./RecentActivity";
 
-const METRIC_EXPLANATIONS = {
-  revenue: "Total revenue generated from converted leads",
-  profit: "Revenue minus ad spend",
-  roi: "Return on Investment: (Profit / Cost) × 100",
-  leads: "Total number of leads generated",
-  spend: "Total amount spent on advertising",
-  impressions: "Number of times your ads were shown",
-  clicks: "Number of times people clicked your ads",
-  ctr: "Click-Through Rate: (Clicks / Impressions) × 100",
-  avg_cpc: "Average Cost Per Click: (Cost / Clicks)",
-  cost_per_conversion: "Average cost to get one conversion"
-};
-
-function MetricTooltip({ metric, children }) {
-  const [show, setShow] = useState(false);
-  return (
-    <div 
-      style={{ position: 'relative', display: 'inline-block' }}
-      onMouseEnter={() => setShow(true)}
-      onMouseLeave={() => setShow(false)}
-    >
-      {children}
-      {show && (
-        <div style={{
-          position: 'absolute',
-          bottom: '100%',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          marginBottom: '8px',
-          padding: '8px 12px',
-          background: 'var(--bg)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius)',
-          fontSize: '12px',
-          color: 'var(--text)',
-          whiteSpace: 'nowrap',
-          zIndex: 1000,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
-        }}>
-          {METRIC_EXPLANATIONS[metric]}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function fmtMoney(n) { return n === null || n === undefined ? "—" : `£${Math.round(Number(n)).toLocaleString()}`; }
 function fmtPercent(n) { return n === null || n === undefined ? "—" : `${n.toFixed(1)}%`; }
 function fmtChange(current, previous) {
@@ -185,94 +139,74 @@ export default function OverviewView({ onSelectKeyword }) {
       {!loading && (
         <>
           <div className="summary-row fade-in">
-            <MetricTooltip metric="revenue">
-              <StatCard
-                label="Revenue"
-                value={fmtMoney(current.revenue)}
-                subtitle={fmtChange(current.revenue, previous.revenue)}
-                trendColor={current.revenue >= previous.revenue ? "var(--success)" : "var(--danger)"}
-              />
-            </MetricTooltip>
-            <MetricTooltip metric="profit">
-              <StatCard
-                label="Profit"
-                value={fmtMoney(current.profit)}
-                subtitle={fmtChange(current.profit, previous.profit)}
-                trendColor={current.profit >= previous.profit ? "var(--success)" : "var(--danger)"}
-              />
-            </MetricTooltip>
-            <MetricTooltip metric="roi">
-              <StatCard
-                label="ROI"
-                value={fmtPercent(current.roi)}
-                subtitle={fmtChange(current.roi, previous.roi)}
-                trendColor={current.roi >= previous.roi ? "var(--success)" : "var(--danger)"}
-              />
-            </MetricTooltip>
-            <MetricTooltip metric="leads">
-              <StatCard
-                label="Leads"
-                value={current.total_leads}
-                subtitle={fmtChange(current.total_leads, previous.total_leads)}
-                trendColor={current.total_leads >= previous.total_leads ? "var(--success)" : "var(--danger)"}
-              />
-            </MetricTooltip>
-            <MetricTooltip metric="spend">
-              <StatCard
-                label="Spend"
-                value={fmtMoney(current.cost)}
-                subtitle={fmtChange(current.cost, previous.cost)}
-                trendColor={current.cost <= previous.cost ? "var(--success)" : "var(--danger)"}
-              />
-            </MetricTooltip>
+            <StatCard
+              label="Revenue"
+              value={fmtMoney(current.revenue)}
+              subtitle={fmtChange(current.revenue, previous.revenue)}
+              trendColor={current.revenue >= previous.revenue ? "var(--success)" : "var(--danger)"}
+            />
+            <StatCard
+              label="Profit"
+              value={fmtMoney(current.profit)}
+              subtitle={fmtChange(current.profit, previous.profit)}
+              trendColor={current.profit >= previous.profit ? "var(--success)" : "var(--danger)"}
+            />
+            <StatCard
+              label="ROI"
+              value={fmtPercent(current.roi)}
+              subtitle={fmtChange(current.roi, previous.roi)}
+              trendColor={current.roi >= previous.roi ? "var(--success)" : "var(--danger)"}
+            />
+            <StatCard
+              label="Leads"
+              value={current.total_leads}
+              subtitle={fmtChange(current.total_leads, previous.total_leads)}
+              trendColor={current.total_leads >= previous.total_leads ? "var(--success)" : "var(--danger)"}
+            />
+            <StatCard
+              label="Spend"
+              value={fmtMoney(current.cost)}
+              subtitle={fmtChange(current.cost, previous.cost)}
+              trendColor={current.cost <= previous.cost ? "var(--success)" : "var(--danger)"}
+            />
           </div>
 
           <div className="summary-row fade-in">
-            <MetricTooltip metric="impressions">
-              <StatCard
-                label="Impressions"
-                value={current.impressions.toLocaleString()}
-                subtitle={fmtChange(current.impressions, previous.impressions)}
-                extra=""
-                trendColor={current.impressions >= previous.impressions ? "var(--success)" : "var(--danger)"}
-              />
-            </MetricTooltip>
-            <MetricTooltip metric="clicks">
-              <StatCard
-                label="Clicks"
-                value={current.clicks.toLocaleString()}
-                subtitle={fmtChange(current.clicks, previous.clicks)}
-                extra=""
-                trendColor={current.clicks >= previous.clicks ? "var(--success)" : "var(--danger)"}
-              />
-            </MetricTooltip>
-            <MetricTooltip metric="ctr">
-              <StatCard
-                label="CTR"
-                value={fmtPercent(current.ctr)}
-                subtitle={fmtChange(current.ctr, previous.ctr)}
-                extra=""
-                trendColor={current.ctr >= previous.ctr ? "var(--success)" : "var(--danger)"}
-              />
-            </MetricTooltip>
-            <MetricTooltip metric="avg_cpc">
-              <StatCard
-                label="Avg CPC"
-                value={fmtMoney(current.avg_cpc)}
-                subtitle={fmtChange(current.avg_cpc, previous.avg_cpc)}
-                extra=""
-                trendColor={current.avg_cpc <= previous.avg_cpc ? "var(--success)" : "var(--danger)"}
-              />
-            </MetricTooltip>
-            <MetricTooltip metric="cost_per_conversion">
-              <StatCard
-                label="Cost / Conversion"
-                value={fmtMoney(current.cost_per_conversion)}
-                subtitle={fmtChange(current.cost_per_conversion, previous.cost_per_conversion)}
-                extra=""
-                trendColor={current.cost_per_conversion <= previous.cost_per_conversion ? "var(--success)" : "var(--danger)"}
-              />
-            </MetricTooltip>
+            <StatCard
+              label="Impressions"
+              value={current.impressions.toLocaleString()}
+              subtitle={fmtChange(current.impressions, previous.impressions)}
+              extra=""
+              trendColor={current.impressions >= previous.impressions ? "var(--success)" : "var(--danger)"}
+            />
+            <StatCard
+              label="Clicks"
+              value={current.clicks.toLocaleString()}
+              subtitle={fmtChange(current.clicks, previous.clicks)}
+              extra=""
+              trendColor={current.clicks >= previous.clicks ? "var(--success)" : "var(--danger)"}
+            />
+            <StatCard
+              label="CTR"
+              value={fmtPercent(current.ctr)}
+              subtitle={fmtChange(current.ctr, previous.ctr)}
+              extra=""
+              trendColor={current.ctr >= previous.ctr ? "var(--success)" : "var(--danger)"}
+            />
+            <StatCard
+              label="Avg CPC"
+              value={fmtMoney(current.avg_cpc)}
+              subtitle={fmtChange(current.avg_cpc, previous.avg_cpc)}
+              extra=""
+              trendColor={current.avg_cpc <= previous.avg_cpc ? "var(--success)" : "var(--danger)"}
+            />
+            <StatCard
+              label="Cost / Conversion"
+              value={fmtMoney(current.cost_per_conversion)}
+              subtitle={fmtChange(current.cost_per_conversion, previous.cost_per_conversion)}
+              extra=""
+              trendColor={current.cost_per_conversion <= previous.cost_per_conversion ? "var(--success)" : "var(--danger)"}
+            />
           </div>
 
           <div className="section-heading fade-in">

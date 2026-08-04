@@ -23,18 +23,29 @@ function HelpModal({ onClose }) {
             <li><strong>Detailed Stats:</strong> Performance by keyword, campaign, or ad group</li>
             <li><strong>Sales:</strong> Revenue and conversion tracking</li>
           </ul>
-          <h3>Common Metrics</h3>
+          <h3>Metric Definitions</h3>
           <ul>
-            <li><strong>CTR:</strong> Click-Through Rate - how often people click your ad</li>
-            <li><strong>CPC:</strong> Cost Per Click - average cost per ad click</li>
-            <li><strong>Impressions:</strong> Number of times your ad was shown</li>
-            <li><strong>Quality Score:</strong> Google's rating of ad quality (1-10)</li>
+            <li><strong>Revenue:</strong> Total revenue generated from converted leads</li>
+            <li><strong>Profit:</strong> Revenue minus ad spend</li>
+            <li><strong>ROI:</strong> Return on Investment: (Profit / Cost) × 100</li>
+            <li><strong>Leads:</strong> Total number of leads generated</li>
+            <li><strong>Spend:</strong> Total amount spent on advertising</li>
+            <li><strong>Impressions:</strong> Number of times your ads were shown</li>
+            <li><strong>Clicks:</strong> Number of times people clicked your ads</li>
+            <li><strong>CTR:</strong> Click-Through Rate: (Clicks / Impressions) × 100</li>
+            <li><strong>Avg CPC:</strong> Average Cost Per Click: (Cost / Clicks)</li>
+            <li><strong>Cost / Conversion:</strong> Average cost to get one conversion</li>
+            <li><strong>Conversions:</strong> Number of Google Ads conversions</li>
+            <li><strong>Click → Conv. Rate:</strong> Conversion Rate: (Conversions / Clicks) × 100</li>
+            <li><strong>Cost / Lead:</strong> Average cost to get one lead: (Cost / Lead Count)</li>
+            <li><strong>Impr. Share:</strong> How often your ad shows vs. total opportunities</li>
+            <li><strong>Quality Score:</strong> Google's rating of your ad quality (1-10 scale)</li>
           </ul>
           <h3>Tips</h3>
           <ul>
-            <li>Hover over any metric to see an explanation</li>
             <li>Click on keywords in Dashboard or Detailed Stats to filter leads</li>
             <li>Use date filters to analyze specific time periods</li>
+            <li>Use the date preset dropdown for quick time range selection</li>
           </ul>
         </div>
       </div>
