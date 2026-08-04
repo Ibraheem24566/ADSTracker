@@ -131,15 +131,15 @@ body {
 }
 
 .header-logo {
-  width: 48px;
-  height: 48px;
+  width: 64px;
+  height: 64px;
   object-fit: contain;
   flex-shrink: 0;
 }
 
 .header h1 {
   font-family: 'Poppins', var(--font-display), sans-serif;
-  font-size: 18px;
+  font-size: 24px;
   font-weight: 900;
   letter-spacing: -0.02em;
   margin: 0;
