@@ -100,8 +100,8 @@ export default function OverviewView({ onSelectKeyword }) {
     <div>
       <div className="filters" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <select 
-            value={datePreset} 
+          <select
+            value={datePreset}
             onChange={(e) => handleDatePresetChange(e.target.value)}
           >
             <option value="7">Last 7 days</option>
@@ -109,17 +109,19 @@ export default function OverviewView({ onSelectKeyword }) {
             <option value="30">Last 30 days</option>
             <option value="90">Last 90 days</option>
           </select>
-          <input
-            type="date"
-            value={range.from}
-            onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))}
-          />
-          <span style={{ color: "var(--text-muted)", margin: '0 4px', alignSelf: 'center' }}>to</span>
-          <input
-            type="date"
-            value={range.to}
-            onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))}
-          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <input
+              type="date"
+              value={range.from}
+              onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))}
+            />
+            <span style={{ color: "var(--text-muted)" }}>to</span>
+            <input
+              type="date"
+              value={range.to}
+              onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))}
+            />
+          </div>
         </div>
         <select 
           value={selectedCampaign} 
