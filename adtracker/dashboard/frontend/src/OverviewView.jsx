@@ -214,7 +214,7 @@ export default function OverviewView({ onSelectKeyword }) {
 
           <div className="section-heading fade-in">
             <h3>Comments</h3>
-            <span className="sub">witty observations from this period's data</span>
+            <span className="sub">observations from this period's data</span>
           </div>
           <div className="fade-in">
             <InsightsPanel
