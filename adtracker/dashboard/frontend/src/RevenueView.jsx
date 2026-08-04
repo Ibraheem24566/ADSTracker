@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getLeads, getPerformance, getCampaigns } from "./api";
 
-function StatusTooltip({ leads, position, onMouseEnter, onMouseLeave }) {
+function StatusTooltip({ leads, position, onMouseEnter, onMouseLeave, status }) {
   if (!leads || leads.length === 0) return null;
 
   const displayLeads = leads.slice(0, 5);
@@ -14,6 +14,8 @@ function StatusTooltip({ leads, position, onMouseEnter, onMouseLeave }) {
     const options = { timeZone: 'America/Los_Angeles', year: 'numeric', month: 'numeric', day: 'numeric' };
     return date.toLocaleDateString('en-US', options);
   }
+
+  const showReason = status === 'Disqualified' || status === 'Closed Lost';
 
   return (
     <div
@@ -45,7 +47,10 @@ function StatusTooltip({ leads, position, onMouseEnter, onMouseLeave }) {
           }}>
             <div style={{ fontWeight: 500, color: 'var(--text)', marginBottom: '2px' }}>{lead.name || 'Unknown'}</div>
             <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '2px' }}>{lead.email || 'No email'}</div>
-            <div style={{ fontSize: '11px', color: 'var(--text-faint)' }}>Received: {formatPacificDate(lead.created_at)}</div>
+            <div style={{ fontSize: '11px', color: 'var(--text-faint)', marginBottom: '2px' }}>Received: {formatPacificDate(lead.created_at)}</div>
+            {showReason && lead.disqualified_reason && (
+              <div style={{ fontSize: '11px', color: 'var(--danger)', marginTop: '2px' }}>Reason: {lead.disqualified_reason}</div>
+            )}
           </div>
         ))}
         {remainingCount > 0 && (
@@ -146,7 +151,7 @@ export default function RevenueView({ onSelectStatus }) {
     const statusLeads = revenueData.leads
       .filter(l => l.status === status)
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    setHoveredStatus(statusLeads);
+    setHoveredStatus({ leads: statusLeads, status });
     const rect = event.currentTarget.getBoundingClientRect();
     setTooltipPosition({
       top: rect.top,
@@ -174,7 +179,7 @@ export default function RevenueView({ onSelectStatus }) {
 
   return (
     <div style={{ position: 'relative' }}>
-      {hoveredStatus && <StatusTooltip leads={hoveredStatus} position={tooltipPosition} onMouseEnter={handleTooltipEnter} onMouseLeave={handleTooltipLeave} />}
+      {hoveredStatus && <StatusTooltip leads={hoveredStatus.leads} status={hoveredStatus.status} position={tooltipPosition} onMouseEnter={handleTooltipEnter} onMouseLeave={handleTooltipLeave} />}
       <div className="filters">
         <input
           type="date"
