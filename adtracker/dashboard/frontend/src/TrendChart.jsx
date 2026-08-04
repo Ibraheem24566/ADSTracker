@@ -179,16 +179,6 @@ export default function TrendChart({ data, series }) {
             {data[i]?.date?.slice(5)}
           </text>
         ))}
-
-        {/* legend */}
-        <g transform={`translate(${padding}, 16)`}>
-          {series.map((s, i) => (
-            <g key={s.key} transform={`translate(${i * 120}, 0)`}>
-              <rect width="12" height="12" fill={s.color} rx="3" />
-              <text x="18" y="10" fontSize="12" fill="var(--text)" fontWeight="600">{s.label}</text>
-            </g>
-          ))}
-        </g>
       </svg>
     </div>
   );
