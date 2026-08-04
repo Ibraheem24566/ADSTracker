@@ -131,30 +131,30 @@ body {
 }
 
 .header-logo {
-  width: 32px;
-  height: 32px;
+  width: 48px;
+  height: 48px;
   object-fit: contain;
   flex-shrink: 0;
 }
 
 .header h1 {
-  font-family: var(--font-display);
+  font-family: 'Poppins', var(--font-display), sans-serif;
   font-size: 18px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  font-weight: 900;
+  letter-spacing: -0.02em;
   margin: 0;
 }
 
-.ads-black {
+.ads-blue {
+  color: #4361ee;
+}
+
+.hq-black {
   color: #000000;
 }
 
-[data-theme="dark"] .ads-black {
+[data-theme="dark"] .hq-black {
   color: #ffffff;
-}
-
-.hq-blue {
-  color: #4361ee;
 }
 
 .header-right {
