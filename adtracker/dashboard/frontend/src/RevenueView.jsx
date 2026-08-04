@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { getLeads, getPerformance, getCampaigns } from "./api";
 
-function StatusTooltip({ leads, position }) {
+function StatusTooltip({ leads, position, onMouseEnter, onMouseLeave }) {
   if (!leads || leads.length === 0) return null;
 
   const displayLeads = leads.slice(0, 5);
@@ -23,6 +23,8 @@ function StatusTooltip({ leads, position }) {
   return (
     <div
       className="status-tooltip"
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       style={{
         position: 'fixed',
         top: showAbove ? position.top - tooltipHeight - 8 : position.top + position.height + 8,
@@ -71,6 +73,7 @@ export default function RevenueView({ onSelectStatus }) {
   const [range, setRange] = useState({ from: todayMinus(7), to: todayMinus(0) });
   const [hoveredStatus, setHoveredStatus] = useState(null);
   const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0, height: 0 });
+  const hoverTimeoutRef = useRef(null);
 
   function todayMinus(days) {
     const d = new Date();
@@ -139,6 +142,10 @@ export default function RevenueView({ onSelectStatus }) {
   useEffect(() => { load(); }, [load]);
 
   const handleStatusHover = (status, event) => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
     if (!revenueData?.leads) return;
     const statusLeads = revenueData.leads
       .filter(l => l.status === status)
@@ -153,12 +160,25 @@ export default function RevenueView({ onSelectStatus }) {
   };
 
   const handleStatusLeave = () => {
+    hoverTimeoutRef.current = setTimeout(() => {
+      setHoveredStatus(null);
+    }, 200);
+  };
+
+  const handleTooltipEnter = () => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+  };
+
+  const handleTooltipLeave = () => {
     setHoveredStatus(null);
   };
 
   return (
     <div style={{ position: 'relative' }}>
-      {hoveredStatus && <StatusTooltip leads={hoveredStatus} position={tooltipPosition} />}
+      {hoveredStatus && <StatusTooltip leads={hoveredStatus} position={tooltipPosition} onMouseEnter={handleTooltipEnter} onMouseLeave={handleTooltipLeave} />}
       <div className="filters">
         <input
           type="date"
