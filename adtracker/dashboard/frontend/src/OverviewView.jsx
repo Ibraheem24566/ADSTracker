@@ -30,7 +30,7 @@ const SEVERITY_LABEL = { high: "High", medium: "Medium", low: "Low" };
 const METRIC_OPTIONS = [
   { key: "revenue", label: "Revenue", color: "var(--success)" },
   { key: "cost", label: "Spend", color: "#000000" },
-  { key: "conversions", label: "Conversions", color: "#2563eb" },
+  { key: "leads", label: "Leads", color: "#2563eb" },
   { key: "impressions", label: "Impressions", color: "#eab308" },
   { key: "clicks", label: "Clicks", color: "#06b6d4" },
 ];
@@ -39,7 +39,7 @@ export default function OverviewView({ onSelectKeyword }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState({ from: todayMinus(7), to: todayMinus(0) });
-  const [chartMetrics, setChartMetrics] = useState(["revenue", "cost"]);
+  const [chartMetrics, setChartMetrics] = useState(["revenue", "leads"]);
   const [campaigns, setCampaigns] = useState([]);
   const [selectedCampaign, setSelectedCampaign] = useState("");
 
