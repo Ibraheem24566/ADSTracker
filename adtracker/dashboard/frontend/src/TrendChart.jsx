@@ -33,7 +33,7 @@ export default function TrendChart({ data, series }) {
 
   const width = 800;
   const height = 300;
-  const padding = 40;
+  const padding = 50;
   const innerW = width - padding * 2;
 
   const ranges = series.map((s) => {
