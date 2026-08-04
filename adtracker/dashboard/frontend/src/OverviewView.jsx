@@ -92,20 +92,23 @@ export default function OverviewView({ onSelectKeyword }) {
 
   return (
     <div>
-      <div className="filters">
-        <input 
-          type="date" 
-          value={range.from} 
-          onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))} 
-        />
-        <input 
-          type="date" 
-          value={range.to} 
-          onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))} 
-        />
+      <div className="filters" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <input 
+            type="date" 
+            value={range.from} 
+            onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))} 
+          />
+          <input 
+            type="date" 
+            value={range.to} 
+            onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))} 
+          />
+        </div>
         <select 
           value={selectedCampaign} 
           onChange={(e) => setSelectedCampaign(e.target.value)}
+          style={{ marginLeft: 'auto' }}
         >
           <option value="">All campaigns</option>
           {campaigns.map((campaign) => (
