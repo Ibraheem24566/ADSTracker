@@ -64,7 +64,7 @@ function todayMinus(days) {
   });
 }
 
-export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
+export default function LeadsView({ keywordFilter, onClearKeywordFilter, statusFilter, onClearStatusFilter }) {
   const [leads, setLeads] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -223,8 +223,17 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
 
   // combine manual filters with a keyword drill-down passed in from another tab
   const effectiveFilters = useMemo(
-    () => (keywordFilter?.id ? { ...filters, keyword_id: keywordFilter.id } : filters),
-    [filters, keywordFilter?.id]
+    () => {
+      let result = { ...filters };
+      if (keywordFilter?.id) {
+        result.keyword_id = keywordFilter.id;
+      }
+      if (statusFilter) {
+        result.status = statusFilter;
+      }
+      return result;
+    },
+    [filters, keywordFilter?.id, statusFilter]
   );
 
   const load = useCallback(async () => {
@@ -495,6 +504,11 @@ export default function LeadsView({ keywordFilter, onClearKeywordFilter }) {
         {keywordFilter?.id && (
           <span className="badge matched" style={{ cursor: "pointer" }} onClick={onClearKeywordFilter} title="Click to clear">
             Keyword: {keywordFilter.text} ✕
+          </span>
+        )}
+        {statusFilter && (
+          <span className="badge matched" style={{ cursor: "pointer" }} onClick={onClearStatusFilter} title="Click to clear">
+            Status: {statusFilter} ✕
           </span>
         )}
         <span style={{ fontSize: 12, color: "var(--text-faint)", minWidth: "60px", display: "inline-block", textAlign: "right" }}>

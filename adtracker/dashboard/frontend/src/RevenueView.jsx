@@ -1,10 +1,62 @@
 import { useEffect, useState, useCallback } from "react";
 import { getLeads, getPerformance, getCampaigns } from "./api";
 
-export default function RevenueView() {
+function StatusTooltip({ leads, position }) {
+  if (!leads || leads.length === 0) return null;
+
+  const displayLeads = leads.slice(0, 10);
+  const remainingCount = leads.length - 10;
+
+  return (
+    <div
+      className="status-tooltip"
+      style={{
+        position: 'absolute',
+        top: position.top + position.height + 8,
+        left: position.left,
+        zIndex: 1000,
+        minWidth: '250px',
+        maxWidth: '350px'
+      }}
+    >
+      <div style={{
+        background: 'var(--bg)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius)',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        padding: '12px',
+        fontSize: '13px'
+      }}>
+        {displayLeads.map((lead, index) => (
+          <div key={index} style={{
+            padding: '6px 0',
+            borderBottom: index < displayLeads.length - 1 ? '1px solid var(--border)' : 'none'
+          }}>
+            <div style={{ fontWeight: 500, color: 'var(--text)' }}>{lead.name || 'Unknown'}</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{lead.email || 'No email'}</div>
+          </div>
+        ))}
+        {remainingCount > 0 && (
+          <div style={{
+            paddingTop: '6px',
+            fontSize: '12px',
+            color: 'var(--text-muted)',
+            fontStyle: 'italic'
+          }}>
+            and {remainingCount} more lead{remainingCount > 1 ? 's' : ''}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function RevenueView({ onSelectStatus }) {
   const [loading, setLoading] = useState(true);
   const [revenueData, setRevenueData] = useState(null);
   const [range, setRange] = useState({ from: todayMinus(7), to: todayMinus(0) });
+  const [hoveredStatus, setHoveredStatus] = useState(null);
+  const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0, height: 0 });
 
   function todayMinus(days) {
     const d = new Date();
@@ -56,6 +108,7 @@ export default function RevenueView() {
         wonLeads,
         totalConversions,
         statusCounts,
+        leads,
         roi: totalCost > 0 ? ((totalRevenue - totalCost) / totalCost) * 100 : 0,
         conversionRate: totalLeads > 0 ? (wonLeads / totalLeads) * 100 : 0,
         costPerLead: totalLeads > 0 ? totalCost / totalLeads : 0,
@@ -71,8 +124,27 @@ export default function RevenueView() {
 
   useEffect(() => { load(); }, [load]);
 
+  const handleStatusHover = (status, event) => {
+    if (!revenueData?.leads) return;
+    const statusLeads = revenueData.leads
+      .filter(l => l.status === status)
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    setHoveredStatus(statusLeads);
+    const rect = event.currentTarget.getBoundingClientRect();
+    setTooltipPosition({
+      top: rect.top,
+      left: rect.left,
+      height: rect.height
+    });
+  };
+
+  const handleStatusLeave = () => {
+    setHoveredStatus(null);
+  };
+
   return (
-    <div>
+    <div style={{ position: 'relative' }}>
+      {hoveredStatus && <StatusTooltip leads={hoveredStatus} position={tooltipPosition} />}
       <div className="filters">
         <input
           type="date"
@@ -170,7 +242,13 @@ export default function RevenueView() {
             <h3>Status Breakdown</h3>
           </div>
           <div className="summary-row fade-in">
-            <div className="stat-card">
+            <div
+              className="stat-card"
+              style={{ cursor: 'pointer' }}
+              onMouseEnter={(e) => handleStatusHover('Contacted', e)}
+              onMouseLeave={handleStatusLeave}
+              onClick={() => onSelectStatus && onSelectStatus('Contacted')}
+            >
               <div className="label">Contacted</div>
               <div className="value-row">
                 <div className="value">{revenueData.statusCounts.Contacted}</div>
@@ -179,7 +257,13 @@ export default function RevenueView() {
                 </div>
               </div>
             </div>
-            <div className="stat-card">
+            <div
+              className="stat-card"
+              style={{ cursor: 'pointer' }}
+              onMouseEnter={(e) => handleStatusHover('Appointment Set', e)}
+              onMouseLeave={handleStatusLeave}
+              onClick={() => onSelectStatus && onSelectStatus('Appointment Set')}
+            >
               <div className="label">Appointment Set</div>
               <div className="value-row">
                 <div className="value">{revenueData.statusCounts["Appointment Set"]}</div>
@@ -188,7 +272,13 @@ export default function RevenueView() {
                 </div>
               </div>
             </div>
-            <div className="stat-card">
+            <div
+              className="stat-card"
+              style={{ cursor: 'pointer' }}
+              onMouseEnter={(e) => handleStatusHover('Site Assessment', e)}
+              onMouseLeave={handleStatusLeave}
+              onClick={() => onSelectStatus && onSelectStatus('Site Assessment')}
+            >
               <div className="label">Site Assessment</div>
               <div className="value-row">
                 <div className="value">{revenueData.statusCounts["Site Assessment"]}</div>
@@ -197,7 +287,13 @@ export default function RevenueView() {
                 </div>
               </div>
             </div>
-            <div className="stat-card">
+            <div
+              className="stat-card"
+              style={{ cursor: 'pointer' }}
+              onMouseEnter={(e) => handleStatusHover('Disqualified', e)}
+              onMouseLeave={handleStatusLeave}
+              onClick={() => onSelectStatus && onSelectStatus('Disqualified')}
+            >
               <div className="label">Rejected Leads</div>
               <div className="value-row">
                 <div className="value" style={{ color: "var(--danger)" }}>{revenueData.statusCounts.Disqualified}</div>
@@ -206,7 +302,13 @@ export default function RevenueView() {
                 </div>
               </div>
             </div>
-            <div className="stat-card">
+            <div
+              className="stat-card"
+              style={{ cursor: 'pointer' }}
+              onMouseEnter={(e) => handleStatusHover('Closed Lost', e)}
+              onMouseLeave={handleStatusLeave}
+              onClick={() => onSelectStatus && onSelectStatus('Closed Lost')}
+            >
               <div className="label">Closed Lost</div>
               <div className="value-row">
                 <div className="value" style={{ color: "var(--danger)" }}>{revenueData.statusCounts["Closed Lost"]}</div>

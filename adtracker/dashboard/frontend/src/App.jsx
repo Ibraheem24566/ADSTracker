@@ -64,6 +64,7 @@ export default function App() {
   const [validating, setValidating] = useState(true);
   const [tab, setTab] = useState("overview");
   const [keywordFilter, setKeywordFilter] = useState(null); // { id, text } | null
+  const [statusFilter, setStatusFilter] = useState(null); // string | null
   const [theme, setTheme] = useState(getInitialTheme);
   const [showHelp, setShowHelp] = useState(false);
 
@@ -103,6 +104,12 @@ export default function App() {
     setTab("leads");
   }
 
+  // Clicking a status in Sales jumps to Leads, filtered by status.
+  function handleSelectStatus(status) {
+    setStatusFilter(status);
+    setTab("leads");
+  }
+
   return (
     <div className="app">
       <div className="header">
@@ -132,13 +139,13 @@ export default function App() {
         <OverviewView onSelectKeyword={handleSelectKeyword} />
       )}
       {tab === "leads" && (
-        <LeadsView keywordFilter={keywordFilter} onClearKeywordFilter={() => setKeywordFilter(null)} />
+        <LeadsView keywordFilter={keywordFilter} onClearKeywordFilter={() => setKeywordFilter(null)} statusFilter={statusFilter} onClearStatusFilter={() => setStatusFilter(null)} />
       )}
       {tab === "performance" && (
         <PerformanceView onSelectKeyword={handleSelectKeyword} />
       )}
       {tab === "revenue" && (
-        <RevenueView />
+        <RevenueView onSelectStatus={handleSelectStatus} />
       )}
 
       {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
