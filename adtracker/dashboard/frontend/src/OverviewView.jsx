@@ -42,7 +42,7 @@ export default function OverviewView({ onSelectKeyword }) {
   const [chartMetrics, setChartMetrics] = useState(["revenue", "leads"]);
   const [campaigns, setCampaigns] = useState([]);
   const [selectedCampaign, setSelectedCampaign] = useState("");
-  const [datePreset, setDatePreset] = useState("7");
+  const [datePreset, setDatePreset] = useState("");
 
   const handleDatePresetChange = (days) => {
     setDatePreset(days);
@@ -104,6 +104,7 @@ export default function OverviewView({ onSelectKeyword }) {
             value={datePreset}
             onChange={(e) => handleDatePresetChange(e.target.value)}
           >
+            <option value="">Select date range</option>
             <option value="7">Last 7 days</option>
             <option value="14">Last 14 days</option>
             <option value="30">Last 30 days</option>
