@@ -2,6 +2,55 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { getPerformance, getCampaigns } from "./api";
 import { ArrowUpIcon, ArrowDownIcon } from "./icons";
 
+const METRIC_EXPLANATIONS = {
+  impressions: "Number of times your ads were shown",
+  clicks: "Number of times people clicked your ads",
+  ctr: "Click-Through Rate: (Clicks / Impressions) × 100",
+  cost: "Total amount spent on this item",
+  avg_cpc: "Average Cost Per Click: (Cost / Clicks)",
+  conversions: "Number of Google Ads conversions",
+  click_to_conversion_rate: "Conversion Rate: (Conversions / Clicks) × 100",
+  lead_count: "Number of leads generated from this item",
+  cost_per_lead: "Average cost to get one lead: (Cost / Lead Count)",
+  avg_impression_share: "How often your ad shows vs. total opportunities",
+  avg_quality_score: "Google's rating of your ad quality (1-10 scale)"
+};
+
+function MetricTooltip({ metric, children }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div 
+      style={{ position: 'relative', display: 'inline-block' }}
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+    >
+      {children}
+      {show && (
+        <div style={{
+          position: 'absolute',
+          bottom: '100%',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          marginBottom: '8px',
+          padding: '8px 12px',
+          background: 'var(--bg)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius)',
+          fontSize: '12px',
+          color: 'var(--text)',
+          whiteSpace: 'nowrap',
+          zIndex: 1000,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+          maxWidth: '300px',
+          whiteSpace: 'normal'
+        }}>
+          {METRIC_EXPLANATIONS[metric]}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function todayMinus(days) {
   const d = new Date();
   d.setDate(d.getDate() - days);
@@ -137,67 +186,67 @@ export default function PerformanceView({ onSelectKeyword }) {
       visible: groupBy === "keyword"
     },
     impressions: {
-      header: <SortHeader id="impressions" label="Impr." sort={sort} setSort={setSort} className="num" />,
+      header: <MetricTooltip metric="impressions"><SortHeader id="impressions" label="Impr." sort={sort} setSort={setSort} className="num" /></MetricTooltip>,
       cell: (r) => <td className="num">{r.impressions.toLocaleString()}</td>,
       draggable: true,
       visible: true
     },
     clicks: {
-      header: <SortHeader id="clicks" label="Clicks" sort={sort} setSort={setSort} className="num" />,
+      header: <MetricTooltip metric="clicks"><SortHeader id="clicks" label="Clicks" sort={sort} setSort={setSort} className="num" /></MetricTooltip>,
       cell: (r) => <td className="num">{r.clicks.toLocaleString()}</td>,
       draggable: true,
       visible: true
     },
     ctr: {
-      header: <SortHeader id="ctr" label="CTR" sort={sort} setSort={setSort} className="num" />,
+      header: <MetricTooltip metric="ctr"><SortHeader id="ctr" label="CTR" sort={sort} setSort={setSort} className="num" /></MetricTooltip>,
       cell: (r) => <td className="num">{fmtPct(r.ctr)}</td>,
       draggable: true,
       visible: true
     },
     cost: {
-      header: <SortHeader id="cost" label="Cost" sort={sort} setSort={setSort} className="num" />,
+      header: <MetricTooltip metric="cost"><SortHeader id="cost" label="Cost" sort={sort} setSort={setSort} className="num" /></MetricTooltip>,
       cell: (r) => <td className="num">{fmtMoney(r.cost)}</td>,
       draggable: true,
       visible: true
     },
     avg_cpc: {
-      header: <SortHeader id="avg_cpc" label="Avg CPC" sort={sort} setSort={setSort} className="num" />,
+      header: <MetricTooltip metric="avg_cpc"><SortHeader id="avg_cpc" label="Avg CPC" sort={sort} setSort={setSort} className="num" /></MetricTooltip>,
       cell: (r) => <td className="num">{fmtMoney(r.avg_cpc)}</td>,
       draggable: true,
       visible: true
     },
     conversions: {
-      header: <SortHeader id="conversions" label="Conversions" sort={sort} setSort={setSort} className="num" />,
+      header: <MetricTooltip metric="conversions"><SortHeader id="conversions" label="Conversions" sort={sort} setSort={setSort} className="num" /></MetricTooltip>,
       cell: (r) => <td className="num">{r.conversions.toFixed(1)}</td>,
       draggable: true,
       visible: true
     },
     click_to_conversion_rate: {
-      header: <SortHeader id="click_to_conversion_rate" label="Click → Conv. Rate" sort={sort} setSort={setSort} className="num" />,
+      header: <MetricTooltip metric="click_to_conversion_rate"><SortHeader id="click_to_conversion_rate" label="Click → Conv. Rate" sort={sort} setSort={setSort} className="num" /></MetricTooltip>,
       cell: (r) => <td className="num">{fmtPct(r.click_to_conversion_rate)}</td>,
       draggable: true,
       visible: true
     },
     lead_count: {
-      header: <SortHeader id="lead_count" label="Leads" sort={sort} setSort={setSort} className="num" />,
+      header: <MetricTooltip metric="lead_count"><SortHeader id="lead_count" label="Leads" sort={sort} setSort={setSort} className="num" /></MetricTooltip>,
       cell: (r) => <td className="num">{r.lead_count}</td>,
       draggable: true,
       visible: true
     },
     cost_per_lead: {
-      header: <SortHeader id="cost_per_lead" label="Cost / Lead" sort={sort} setSort={setSort} className="num" />,
+      header: <MetricTooltip metric="cost_per_lead"><SortHeader id="cost_per_lead" label="Cost / Lead" sort={sort} setSort={setSort} className="num" /></MetricTooltip>,
       cell: (r) => <td className="num">{r.cost_per_lead !== null ? fmtMoney(r.cost_per_lead) : "—"}</td>,
       draggable: true,
       visible: true
     },
     avg_impression_share: {
-      header: <SortHeader id="avg_impression_share" label="Impr. Share" sort={sort} setSort={setSort} className="num" />,
+      header: <MetricTooltip metric="avg_impression_share"><SortHeader id="avg_impression_share" label="Impr. Share" sort={sort} setSort={setSort} className="num" /></MetricTooltip>,
       cell: (r) => <td className="num">{r.avg_impression_share !== null ? `${r.avg_impression_share.toFixed(1)}%` : "—"}</td>,
       draggable: true,
       visible: true
     },
     avg_quality_score: {
-      header: <SortHeader id="avg_quality_score" label="Quality" sort={sort} setSort={setSort} className="num" />,
+      header: <MetricTooltip metric="avg_quality_score"><SortHeader id="avg_quality_score" label="Quality" sort={sort} setSort={setSort} className="num" /></MetricTooltip>,
       cell: (r) => <td className="num">{r.avg_quality_score !== null ? r.avg_quality_score.toFixed(1) : "—"}</td>,
       draggable: true,
       visible: true
