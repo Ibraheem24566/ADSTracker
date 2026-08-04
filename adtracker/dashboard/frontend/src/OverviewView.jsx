@@ -125,35 +125,30 @@ export default function OverviewView({ onSelectKeyword }) {
               label="Revenue"
               value={fmtMoney(current.revenue)}
               subtitle={fmtChange(current.revenue, previous.revenue)}
-              extra={`Best day: ${bestDayName}`}
               trendColor={current.revenue >= previous.revenue ? "var(--success)" : "var(--danger)"}
             />
             <StatCard
               label="Profit"
               value={fmtMoney(current.profit)}
               subtitle={fmtChange(current.profit, previous.profit)}
-              extra={`Margin: ${fmtPercent(current.margin)}`}
               trendColor={current.profit >= previous.profit ? "var(--success)" : "var(--danger)"}
             />
             <StatCard
               label="ROI"
               value={fmtPercent(current.roi)}
               subtitle={fmtChange(current.roi, previous.roi)}
-              extra={current.roi >= 100 ? "Excellent" : current.roi >= 50 ? "Good" : "Needs improvement"}
               trendColor={current.roi >= previous.roi ? "var(--success)" : "var(--danger)"}
             />
             <StatCard
               label="Leads"
               value={current.total_leads}
               subtitle={fmtChange(current.total_leads, previous.total_leads)}
-              extra={`Booking Rate: ${fmtPercent(current.booking_rate)}`}
               trendColor={current.total_leads >= previous.total_leads ? "var(--success)" : "var(--danger)"}
             />
             <StatCard
               label="Spend"
               value={fmtMoney(current.cost)}
               subtitle={fmtChange(current.cost, previous.cost)}
-              extra={`Budget Used: 48%`}
               trendColor={current.cost <= previous.cost ? "var(--success)" : "var(--danger)"}
             />
           </div>
@@ -213,6 +208,18 @@ export default function OverviewView({ onSelectKeyword }) {
             <>
               <div className="section-heading fade-in">
                 <h3>Performance trend</h3>
+                <div className="pill-group">
+                  {METRIC_OPTIONS.map((m) => (
+                    <button
+                      key={m.key}
+                      className={`btn ${chartMetrics.includes(m.key) ? "active" : ""}`}
+                      onClick={() => toggleMetric(m.key)}
+                      style={chartMetrics.includes(m.key) ? { color: m.color } : undefined}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="table-wrap fade-in" style={{ padding: 16, marginBottom: 24 }}>
                 <TrendChart
